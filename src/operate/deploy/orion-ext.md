@@ -16,6 +16,8 @@ You need:
 - One Redis server for the cluster store. It is not a persistence tier.
 - `orion-cli` at the same release as the node.
 
+The examples use `$ORION_ADMIN_KEY` for an admin API key, `$ORION_ADMIN_API_KEYS` for the server's comma-separated key list, and `registry.example.com/orion-ext:2.0.0` for the published image. Replace all three with your own.
+
 Standard and Enterprise are one artifact. The edition is a label the node reports, not a different binary. [Editions](../../concepts/editions.md) explains the model, and [Run a cluster](./cluster.md) covers the cluster internals this page configures.
 
 ## 1. Get the image
@@ -23,7 +25,7 @@ Standard and Enterprise are one artifact. The edition is a label the node report
 Pull the version your licence names from the private registry:
 
 ```bash
-docker pull <YOUR_REGISTRY>/orion-ext:<VERSION>
+docker pull registry.example.com/orion-ext:2.0.0
 ```
 
 Or build it from a checkout. The build fetches Community at the revision `Cargo.toml` pins, never a local patch:
@@ -168,7 +170,7 @@ HA_NGINX=nginx.n3.conf docker compose --profile n3 \
 To run a registry image instead of a local build, set `ORION_EXT_IMAGE` and omit the build override:
 
 ```bash
-export ORION_EXT_IMAGE="<YOUR_REGISTRY>/orion-ext:<VERSION>"
+export ORION_EXT_IMAGE="registry.example.com/orion-ext:2.0.0"
 docker compose -f deploy/compose/ha.yml up -d --wait
 ```
 
@@ -216,17 +218,17 @@ After the roll, confirm every node serves the head and reports the edition:
 
 ```bash
 curl -s http://localhost:8080/api/v2/admin/deployments \
-  -H "authorization: Bearer <YOUR_ADMIN_KEY>" \
+  -H "authorization: Bearer $ORION_ADMIN_KEY" \
   | jq '{head_revision, applied_revision}'
 curl -s http://localhost:8080/api/v2/admin/runtime-capabilities \
-  -H "authorization: Bearer <YOUR_ADMIN_KEY>" \
+  -H "authorization: Bearer $ORION_ADMIN_KEY" \
   | jq '{edition, admission_policy_id}'
 ```
 
 `applied_revision` equals `head_revision` on every node, and the edition matches the label in your config file. Then confirm the drivers and providers the edition adds are registered:
 
 ```bash
-orion-cli --server http://localhost:8080 --api-key <YOUR_ADMIN_KEY> \
+orion-cli --server http://localhost:8080 --api-key $ORION_ADMIN_KEY \
   deployments capabilities
 ```
 

@@ -4,7 +4,7 @@
 
 # Publish a connector provider package
 
-A provider package is how a connector is published as files: a manifest, its schemas, and the workflows or component that serve its operations. The package mechanism runs on any v2 node. A package that declares tier `standard` or `enterprise` needs a node at that edition or above, and a Community node refuses it with `TIER_NOT_ENABLED`.
+A provider package is how a connector is published as files: a manifest, its schemas, and the workflows or component that serve its operations. The package mechanism runs on any v2 node. A `standard` package needs Standard+, an `enterprise` package needs Enterprise, and a Community node refuses both with `TIER_NOT_ENABLED`.
 
 ## Before you start
 
