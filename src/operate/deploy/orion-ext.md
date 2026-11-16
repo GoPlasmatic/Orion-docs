@@ -230,7 +230,7 @@ orion-cli --server http://localhost:8080 --api-key <YOUR_ADMIN_KEY> \
   deployments capabilities
 ```
 
-The answer lists the `kafka`, `graphql` and `sse` channel drivers and the seven edition provider backends. A Community node reports its own three drivers and built-in providers, but none of these, which is why an edition feature is refused there at upload rather than at run time.
+The answer lists the `kafka`, `graphql` and `sse` channel drivers and the seven edition provider backends. A Community node reports its own three drivers and built-in providers, but none of these. That is why an edition feature is refused there at upload rather than at run time.
 
 ## Next steps
 

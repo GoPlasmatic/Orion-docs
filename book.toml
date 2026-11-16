@@ -75,7 +75,6 @@ teaser-word-count = 30
 "/api/data.html" = "../reference/data-api.html"
 "/api/data.html#route-resolution" = "../reference/data-api.html#route-resolution"
 "/configuration/reference.html" = "../reference/configuration.html"
-"/reference/workflows.html#available-operators" = "expressions.html#available-operators"
 
 # Phase 2a — spine, Build with AI, upgrades home
 "/tutorials/cli-setup.html" = "../get-started/install.html"

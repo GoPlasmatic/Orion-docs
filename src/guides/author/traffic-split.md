@@ -124,7 +124,7 @@ orion-cli compile ./definitions -o dist/canary --capabilities target-capabilitie
 orion-cli deployments plan -d dist/canary
 ```
 
-The plan prints one line per member, then the plan document. Read the mark at the start of each line:
+The plan prints one line per member, then the plan document. This output assumes the first document is the revision already deployed; if your existing workflow differs, it shows `+` as well. Read the mark at the start of each line:
 
 | Mark | Meaning |
 |---|---|
@@ -263,6 +263,7 @@ A compiled directory (`-d`) is checked by the server. Either way, nothing is com
 ## Next steps
 
 - [Deployment endpoints](../../reference/admin-api/deployments.md): the plan, apply and rollback contract, and the deployment directory.
+- [`orion-cli deployments`](../../reference/cli/orion-cli/deployments.md): every command this page runs, with its flags.
 - [Deployments](../../concepts/deployments.md): how a manifest becomes the head every node serves.
 - [Traces](../../operate/run/traces.md): reading the run that a bucket selected.
 - [Edition capability matrix](../../reference/editions.md): every gate, with the refusal each returns.

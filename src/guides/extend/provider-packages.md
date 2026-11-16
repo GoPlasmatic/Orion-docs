@@ -4,7 +4,7 @@
 
 # Publish a connector provider package
 
-A provider package is how a connector is published as files: a manifest, its schemas, and the workflows or component that serve its operations. The package mechanism runs on any v2 node. A package that declares tier `standard` or `enterprise` is admitted only at that edition, so a Community node refuses it with `TIER_NOT_ENABLED`.
+A provider package is how a connector is published as files: a manifest, its schemas, and the workflows or component that serve its operations. The package mechanism runs on any v2 node. A package that declares tier `standard` or `enterprise` needs a node at that edition or above, and a Community node refuses it with `TIER_NOT_ENABLED`.
 
 ## Before you start
 
@@ -55,7 +55,7 @@ The answer is one JSON document with the package's files:
 |---|---|---|
 | `rust` | A native provider compiled into the node. | Only on a node that registers a backend under the provider id. |
 | `workflow` | One dataflow workflow per operation, held to the hermetic rules. | Every node once admitted. |
-| `wasm` | A WebAssembly component in the declared world. | Admitted, but no Community node executes it yet. |
+| `wasm` | A WebAssembly component in the declared world. | Admitted, but not executed by a node yet. |
 
 `--tier` writes the `tier` field of `distribution.json`. Omit it and the package declares `community`, which every node admits. `standard` needs a Standard or Enterprise node; `enterprise` needs Enterprise. The scaffold and lint run anywhere; the target's edition decides admission.
 
@@ -128,7 +128,7 @@ workflows/entry.json
 }
 ```
 
-A workflow package's `implementation` may hold only `kind`, `entries` and `workflows`. `entries` maps each operation to a workflow id, and `workflows` lists the files. Every workflow is an operation's entry: a helper workflow, or a workflow no operation enters, is refused. Each operation's `effect` and `retry` are contract; a retry-safe read may be retried, a write may not.
+A workflow package's `implementation` may hold only `kind`, `entries` and `workflows`. `entries` maps each operation to a workflow id, and `workflows` lists the files. Every workflow is an operation's entry: a helper workflow, or a workflow no operation enters, is refused. Each operation's `effect` and `retry` are contract. Declare a read `safe` and a write not, so a caller never retries an effect that may have landed.
 
 A workflow in a package may call the dataflow built-ins (`map`, `validation`, `filter`, `log`, `parse_json`, `parse_xml`, `publish_json`, `publish_xml`), `crypto`, `jwt_sign`, `jwt_verify` and plugin functions. It may also call `connector_call` on a dependency its manifest declares. It may not name `http_call`, `db_read`, `data_query`, `cache_*` or `channel_call`, and it may not carry a secret or an `env://` reference. Use `dependencies` for anything outside.
 
@@ -206,7 +206,7 @@ orders-api v1.0.0
   State:        admitted · artifact active
   Digest:       sha256:4f1c…e9a2
   Admission:    orion.ext.admission/0 (admitted)
-  Fingerprint:  sha256:… 
+  Fingerprint:  sha256:…
   Operations:   item.get
 ```
 
@@ -243,7 +243,7 @@ orion-cli connections create orders-api-prod -f connection.json
 
 `public_config` must satisfy the package's `configuration_schema`; `secret_locators` places each credential at its path and never carries the value. A changed endpoint or credential is the next revision, never an edit of the first.
 
-A package that declares `dependencies` binds each alias to a connection of the deployment:
+If the package declares a `cache` dependency, bind it to a connection of the deployment:
 
 ```bash
 orion-cli connections create orders-api-prod -f connection.json \
@@ -293,7 +293,7 @@ Probe the connection, then make one call through a workflow:
 orion-cli connections probe orders-api-prod
 ```
 
-A probe opens the connection and reports the stage that failed; it exits `2` when the backend is unhealthy. Then deploy a workflow that calls the operation and send one request. The trace names the provider code on failure. The data plane answers by class: `502` provider failure, `503` unavailable or rate-limited, `500` contract violation, `504` deadline.
+A probe checks the revision: a package's configuration schema and admission, or a backend's live connection. It reports the stage that failed and exits `2` when the backend is unhealthy. Then deploy a workflow that calls the operation and send one request. The trace names the provider code on failure. The data plane answers by class: `502` provider failure, `503` unavailable or rate-limited, `500` contract violation, `504` deadline.
 
 ## Next steps
 
