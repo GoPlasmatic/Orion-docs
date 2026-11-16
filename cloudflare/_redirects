@@ -1,5 +1,5 @@
 # Cloudflare Workers static-assets redirect rules. Copied into book/ after
-# `mdbook build` (see the justfile `docs` recipe and .github/workflows/docs.yml)
+# `mdbook build` (see build.sh and .github/workflows/docs.yml)
 # — it lives outside src/ so mdBook does not treat it as book content.
 #
 # wrangler.jsonc sets "html_handling": "none" to keep mdBook's .html URLs

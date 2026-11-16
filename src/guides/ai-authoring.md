@@ -13,7 +13,7 @@ This guide covers three ways to work with AI assistants:
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. You need `orion-server` running locally on `http://localhost:8080` and `orion-cli` installed on your `PATH` (see [Install and run Orion](../get-started/install.md)).
+Tested with Orion 2.0.0. You need `orion-server` running locally on `http://localhost:8080` and `orion-cli` installed on your `PATH` (see [Install and run Orion](../get-started/install.md)).
 
 ---
 

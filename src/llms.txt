@@ -73,4 +73,4 @@ Key facts: workflows execute tasks sequentially over a shared JSON message (`dat
 
 - [Versioning and support policy](https://docs.goplasmatic.io/releases/versioning-policy.html): supported versions, Semantic Versioning contract, edition alignment, Rust MSRV policy, supported databases, and platforms
 - [Upgrade to Orion 2.0](https://docs.goplasmatic.io/releases/upgrade-to-2.0.html): breaking changes between Orion 1.x and 2.0, `/api/v2/` routes, immutable deployments, cursor pagination, tightened defaults, and edition changes
-- [Orion 1.x release history](https://docs.goplasmatic.io/releases/history-1.x.html): consolidated behavioral changes, renames, and migration notes across Orion 1.8.0, 1.6.0, 1.2.0, 1.1.0, and 1.0.0
+- [Orion 1.x release history](https://docs.goplasmatic.io/releases/history-1.x.html): consolidated behavioral changes, renames, and migration notes across Orion 1.12.0, 1.11.0, 1.10.0, 1.9.0, 1.8.0, 1.6.0, 1.2.0, 1.1.0, and 1.0.0

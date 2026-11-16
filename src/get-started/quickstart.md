@@ -8,7 +8,7 @@ In this quickstart, you start an Orion server, define an order-triage service us
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. You need:
+Tested with Orion 2.0.0. You need:
 
 - **`orion-cli`** and either **Docker** or **`orion-server`** installed (see [Install and run Orion](./install.md) if you need to install them—via Homebrew: `brew install GoPlasmatic/tap/orion-server GoPlasmatic/tap/orion-cli`)
 - `curl` and `jq`

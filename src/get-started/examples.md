@@ -8,7 +8,7 @@ The Orion repository includes 11 ready-to-deploy example packages under [`exampl
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. You need:
+Tested with Orion 2.0.0. You need:
 
 - Git, `curl`, `orion-server`, and `orion-cli`
 - A running Orion server on `http://localhost:8080`

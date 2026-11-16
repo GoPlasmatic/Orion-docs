@@ -15,7 +15,7 @@ Real services validate inputs, read and write databases, and run automated tests
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. You need:
+Tested with Orion 2.0.0. You need:
 
 - Git, Docker, and Docker Compose
 - `orion-server`, `orion-cli`, `curl`, and `jq`

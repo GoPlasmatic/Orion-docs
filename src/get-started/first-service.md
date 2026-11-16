@@ -15,7 +15,7 @@ An Orion service consists of a **workflow** (which defines the processing steps)
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. You need:
+Tested with Orion 2.0.0. You need:
 
 - `orion-server` running on `http://localhost:8080` (see [Install and run Orion](./install.md))
 - `orion-cli`, `curl`, and `jq` installed on your `PATH`

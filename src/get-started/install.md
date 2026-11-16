@@ -12,7 +12,7 @@ Always install the same release version for both `orion-server` and `orion-cli` 
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. Choose any installation method below based on your operating system:
+Tested with Orion 2.0.0. Choose any installation method below based on your operating system:
 
 | Method | Supported Platforms | Prerequisites |
 | :--- | :--- | :--- |
@@ -20,10 +20,7 @@ Tested with Orion 2.0.0-rc.1. Choose any installation method below based on your
 | **Shell installer** | Linux and macOS (Apple Silicon) | POSIX shell and `curl` |
 | **PowerShell installer** | Windows | Windows PowerShell |
 | **Docker** | Linux, macOS, Windows | Docker Engine or Docker Desktop |
-| **From source (Cargo)** | Any platform with Rust | Git and Rust `1.98` or newer |
-
-> [!NOTE]
-> While `2.0.0-rc.1` is a release candidate, use the **From source** tab or build from a local checkout if prebuilt release artifacts are not yet published for your tag.
+| **From source (Cargo)** | Any platform with Rust | Git and Rust `1.100` or newer |
 
 ## 1. Install `orion-server`
 
@@ -67,7 +64,7 @@ docker run -p 8080:8080 ghcr.io/goplasmatic/orion:latest
 </section>
 <section data-tab="Source">
 
-Build from source with Cargo (requires Rust `1.98+`):
+Build from source with Cargo (requires Rust `1.100+`):
 
 ```bash
 cargo install --git https://github.com/GoPlasmatic/Orion --locked orion-server
@@ -94,14 +91,14 @@ brew install GoPlasmatic/tap/orion-cli
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/GoPlasmatic/Orion/releases/latest/download/orion-cli-installer.sh | sh
+  https://github.com/GoPlasmatic/Orion-cli/releases/latest/download/orion-cli-installer.sh | sh
 ```
 
 </section>
 <section data-tab="PowerShell">
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://github.com/GoPlasmatic/Orion/releases/latest/download/orion-cli-installer.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/GoPlasmatic/Orion-cli/releases/latest/download/orion-cli-installer.ps1 | iex"
 ```
 
 </section>
@@ -116,7 +113,7 @@ docker run --rm ghcr.io/goplasmatic/orion-cli:latest \
 <section data-tab="Source">
 
 ```bash
-cargo install --git https://github.com/codetiger/Orion-cli --locked orion-cli
+cargo install --git https://github.com/GoPlasmatic/Orion-cli --locked orion-cli
 ```
 
 </section>

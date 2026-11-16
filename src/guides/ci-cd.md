@@ -11,7 +11,7 @@ An Orion delivery pipeline has three stages:
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. You need Git, `orion-cli`, a repository holding your service definitions, and an admin API key (`ORION_API_KEY`) for your target Orion instances.
+Tested with Orion 2.0.0. You need Git, `orion-cli`, a repository holding your service definitions, and an admin API key (`ORION_API_KEY`) for your target Orion instances.
 
 ---
 
@@ -63,7 +63,7 @@ jobs:
       - name: Install orion-cli
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/GoPlasmatic/Orion/releases/latest/download/orion-cli-installer.sh | sh
+            https://github.com/GoPlasmatic/Orion-cli/releases/latest/download/orion-cli-installer.sh | sh
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Check formatting
@@ -110,7 +110,7 @@ jobs:
       - name: Install orion-cli
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/GoPlasmatic/Orion/releases/latest/download/orion-cli-installer.sh | sh
+            https://github.com/GoPlasmatic/Orion-cli/releases/latest/download/orion-cli-installer.sh | sh
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Capture target capabilities

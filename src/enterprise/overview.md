@@ -50,7 +50,7 @@ docker run -d --name orion-ext \
   -p 8080:8080 \
   -v "$(pwd)/orion.toml:/etc/orion/orion.toml:ro" \
   -e ORION_ADMIN_AUTH__API_KEYS="replace-with-admin-key" \
-  orion-ext:2.0.0-rc.1 \
+  ghcr.io/goplasmatic/orion-ext:2.0.0 \
   --config /etc/orion/orion.toml
 ```
 

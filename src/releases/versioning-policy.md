@@ -72,7 +72,7 @@ Any deprecation introduced *after* 2.0.0 is announced in a minor release with th
 
 ## Rust toolchain and MSRV
 
-The minimum supported Rust version (MSRV) for building Orion from source is **1.98**, declared as `rust-version` in `Cargo.toml` and enforced in CI. MSRV increases happen only in minor or major releases and are noted in the changelog. Prebuilt binaries and container images are self-contained and do not require a Rust toolchain.
+The minimum supported Rust version (MSRV) for building Orion from source is **1.100**, declared as `rust-version` in `Cargo.toml` and enforced in CI. MSRV increases happen only in minor or major releases and are noted in the changelog. Prebuilt binaries and container images are self-contained and do not require a Rust toolchain.
 
 Because Orion embeds the Wasmtime WebAssembly runtime for the plugin sandbox, Orion's MSRV also tracks [Wasmtime's MSRV policy](https://docs.wasmtime.dev/stability-release.html) (stable minus two). Wasmtime and Cranelift are compiled into all release targets (adding roughly 6 MB to the binary) but remain inert at runtime unless `plugins.enabled = true`.
 

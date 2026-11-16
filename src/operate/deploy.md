@@ -20,7 +20,7 @@ docker run -d --name orion \
   -p 8080:8080 \
   -v orion-data:/app/data \
   -e ORION_STORAGE__URL="sqlite:/app/data/orion.db" \
-  ghcr.io/goplasmatic/orion:2.0.0-rc.1
+  ghcr.io/goplasmatic/orion:2.0.0
 ```
 
 ### Single-node production `docker-compose.yml`
@@ -30,7 +30,7 @@ Every Community setting maps to an `ORION_SECTION__KEY` environment variable. Un
 ```yaml
 services:
   orion:
-    image: ghcr.io/goplasmatic/orion:2.0.0-rc.1
+    image: ghcr.io/goplasmatic/orion:2.0.0
     ports:
       - "8080:8080"
     environment:
