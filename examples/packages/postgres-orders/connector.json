@@ -1,0 +1,14 @@
+{
+  "id": "orders-db",
+  "name": "orders-db",
+  "connector_type": "db",
+  "tags": ["pkg:postgres-orders"],
+  "config": {
+    "type": "db",
+    "driver": "postgresql",
+    "connection_string": "env://ORDERS_DB_URL",
+    "max_connections": 5,
+    "operations": { "delete": false },
+    "allow_private_urls": true
+  }
+}

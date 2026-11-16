@@ -1,0 +1,10 @@
+{
+  "channel_id": "webhooks",
+  "name": "webhooks",
+  "tags": ["pkg:webhook-transform"],
+  "channel_type": "sync",
+  "protocol": "http",
+  "methods": ["POST"],
+  "route_pattern": "/webhooks",
+  "workflow_id": "webhook-transform"
+}

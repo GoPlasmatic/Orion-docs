@@ -1,0 +1,10 @@
+{
+  "channel_id": "record-order",
+  "name": "record-order",
+  "tags": ["pkg:postgres-orders"],
+  "channel_type": "sync",
+  "protocol": "rest",
+  "methods": ["POST"],
+  "route_pattern": "/record-order",
+  "workflow_id": "record-order"
+}
