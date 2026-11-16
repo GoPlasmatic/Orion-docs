@@ -167,14 +167,16 @@ The hundred buckets are assigned by hashing a caller identity, not by counting r
 
 That makes the split sticky by caller: the same header value or address lands in the same bucket on every request. Two consequences follow. The observed ratio approaches 90/10 over many callers, not over the first ten requests from one caller. And a caller behind a shared address is stuck with whatever that address drew.
 
-A Kafka record hashes its topic, partition and offset, so a redelivery stays on the revision that first ran it. A GraphQL request hashes its request id, so every field of one document routes alike. A streamed run is bucketed the same way as its protocol's deliveries.
+A Kafka record hashes its topic, partition and offset, so a redelivery stays on the revision that first ran it. A GraphQL request hashes its request id, so every field of one document routes alike. A stream's runs hash its request id, so one open stream stays on one revision while it lasts.
 
-Set the header when you want a person or a tenant to stay in one bucket:
+Set the header when you want a person or a tenant to stay in one bucket. It is a node setting, read at boot, so restart the node after changing it:
 
 ```toml
 [engine]
 rollout_sticky_header = "x-user-id"
 ```
+
+Without a header value the caller's address decides the bucket. Behind a proxy, make sure `x-forwarded-for` reaches the node unchanged, or every caller shares the proxy's bucket.
 
 ## Verify
 

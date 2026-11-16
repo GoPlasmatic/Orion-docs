@@ -116,7 +116,7 @@ docker run -d --name orion-ext-a -p 8080:8080 \
   orion-ext:local -c /app/config.toml
 ```
 
-Confirm the node reports the edition and sees its store:
+Confirm the node is ready and sees its store:
 
 ```bash
 curl -s http://localhost:8080/readyz | jq '{status, components}'
@@ -220,7 +220,7 @@ curl -s http://localhost:8080/api/v2/admin/deployments \
   | jq '{head_revision, applied_revision}'
 curl -s http://localhost:8080/api/v2/admin/runtime-capabilities \
   -H "authorization: Bearer <YOUR_ADMIN_KEY>" \
-  | jq '{edition, policy_id}'
+  | jq '{edition, admission_policy_id}'
 ```
 
 `applied_revision` equals `head_revision` on every node, and the edition matches the label in your config file. Then confirm the drivers and providers the edition adds are registered:
@@ -230,7 +230,7 @@ orion-cli --server http://localhost:8080 --api-key <YOUR_ADMIN_KEY> \
   deployments capabilities
 ```
 
-The answer lists the `kafka`, `graphql` and `sse` channel drivers and the seven provider backends. A Community node lists none of them, which is why an edition feature is refused there at upload rather than at run time.
+The answer lists the `kafka`, `graphql` and `sse` channel drivers and the seven edition provider backends. A Community node reports its own three drivers and built-in providers, but none of these, which is why an edition feature is refused there at upload rather than at run time.
 
 ## Next steps
 
