@@ -1,111 +1,54 @@
-<!-- description: One-line definitions for every term the Orion documentation uses with a fixed meaning — channel, workflow, connector, deployment, quarantine, rollout and more. -->
+<!-- description: Definitions of core Orion terms: channels, workflows, connectors, connections, deployments, revisions, generations, quarantine, rollouts, and traces. -->
 <!-- type: glossary -->
-<!-- last_verified: 2026-10-26 -->
+<!-- last_verified: 2026-11-16 -->
 
 # Glossary
 
-One definition for every term the book uses with a fixed meaning, ten to twenty words each. A term with a page of its own links to it; the concept page is the canonical home, and this line is the pointer.
+Concise definitions of the core terms used across Orion documentation and the CLI.
 
-**Backpressure**: a per-channel cap on concurrent in-flight work; `max_concurrent_per_node` bounds every ingress together. See [Channel configuration](../reference/channel-config/index.md).
-
-**Case file**: a `*.case.json` regression test that runs a workflow offline and asserts paths in its output. See [Test a workflow offline](../guides/author/testing.md).
-
-**Channel**: a named service endpoint that receives work over HTTP or on a cron schedule, and hands it to a workflow. See [Channels](./channels.md).
-
-**channel_call**: the built-in function that invokes another channel's workflow in-process from a running task. See [Task functions](../reference/functions/channel_call.md).
-
-**Circuit breaker**: a per-`channel:connector`, per-node gate that stops calls to a repeatedly failing backend until a recovery timeout elapses. See [Connectors](./connectors.md).
-
-**Cluster mode**: a deployment topology in which several replicas share a deployment head, job leases and a hot-path store. Standard and Enterprise only. See [Run a cluster](../operate/deploy/cluster.md).
-
-**Cluster store**: the edition-composed shared store for dedup claims, response cache and rate windows; Redis on Orion Ext. See [Cluster settings](../reference/configuration/cluster.md).
-
-**Connection**: an immutable revision of a connector's configuration, with a driver, public settings and secret locators, named by a deployment. See [Connectors](./connectors.md#two-forms-the-file-and-the-connection).
-
-**Connector**: a named connection to an external system (`http`, `db`, `cache`), written as a file in a definition set and referenced by name. See [Connectors](./connectors.md).
-
-**Control plane**: the admin API under `/api/v2/admin/`, and the CLI that drives it. See [Admin API](../reference/admin-api/index.md).
-
-**Convergence**: which nodes serve a committed deployment revision; every node builds the head on its own and reports it. See [Deployments](./deployments.md#convergence).
-
-**Cron channel**: a channel whose `protocol` is `cron`: a six-field schedule and a fixed payload, with no route and no caller. See [Cron transport](../reference/channel-config/cron.md).
-
-**Data context**: the JSON document a workflow's tasks read and write; its top level is exactly `data`, `metadata` and `temp_data`. See [Workflows](./workflows.md#the-data-context).
-
-**Data plane**: the endpoints under `/api/v2/data/` where channels answer requests. See [Data API](../reference/data-api.md).
-
-**Dedup key (idempotency key)**: the per-channel value, read from a request header, that marks a request as a duplicate inside the dedup window. See [Channel configuration](../reference/channel-config/deduplication.md).
-
-**Definition**: one deployable workflow, channel or plugin document, stored by the digest of its canonical bytes. See [Deployments](./deployments.md#definitions).
-
-**Definition set**: a directory of workflow, channel, connector and plugin files that `orion-cli compile` turns into one deployment. See [How Orion works](./how-orion-works.md#from-files-to-a-serving-node).
-
-**Edition**: the capability and support boundary around one runtime: Community, Standard or Enterprise. Standard and Enterprise are one artifact. See [Editions](./editions.md).
-
-**Deployment**: a manifest naming every definition and connection a node serves, committed as an immutable, numbered revision. See [Deployments](./deployments.md).
-
-**Deployment head**: the latest committed deployment revision; every node builds it and serves it. With none, a node serves nothing. See [Deployments](./deployments.md#the-head).
-
-**Dialect (portable data dialect)**: the backend-neutral query and write language that `data_query` and `data_write` lower to PostgreSQL, MySQL or SQLite. See [Portable data dialect](../reference/data-dialect.md).
-
-**Driver**: a provider compiled into the binary, such as `org.orion.postgresql`; a connection names it by its built-in digest. See [Connectors](./connectors.md#two-forms-the-file-and-the-connection).
-
-**Engine**: the compiled runtime built from every deployed workflow and plugin; a reload rebuilds and swaps it whole, beside the channel estate. See [Design notes](./design-notes.md#how-hot-reload-swaps-the-runtime-generation).
-
-**Estate**: everything one instance serves: the channels, workflows, connections and plugins of its deployment head.
-
-**Fragment**: a reusable run of tasks a source-form workflow pulls in with `use`, resolved by `compile` before the definition reaches an instance. See [CLI](../reference/cli/shared-definitions.md).
-
-**Generation**: one published value holding the engine, the channel estate, the function registry and the plugin set, swapped atomically on reload. See [Design notes](./design-notes.md#how-hot-reload-swaps-the-runtime-generation).
-
-**Hot reload**: replacing the running generation inside a live process; a committed deployment takes effect without a restart. See [Design notes](./design-notes.md#how-hot-reload-swaps-the-runtime-generation).
-
-**Ingress**: any path work enters a channel: a synchronous request, an `/async` submission, a `channel_call`, or a claimed cron occurrence.
-
-**Ingress guards**: the per-channel checks (rate limit, auth, origin, validation, dedup, response cache, backpressure) that run on every ingress before the workflow. See [Channel configuration](../reference/channel-config/index.md).
-
-**Loop**: a workflow setting that repeats the task list once per sweep, up to a declared `max`, with a counter the tasks can index. See [Workflow definition](../reference/workflows.md#loop).
-
-**Manifest**: a plugin's `plugin.toml`, declaring what the component provides and how it is called. See [Plugins](./plugins.md). A deployment's manifest is its member list. See [Deployments](./deployments.md#the-manifest).
-
-**Modular monolith**: one Orion instance running many services side by side, all from one deployment.
-
-**Occurrence**: one scheduled instant of a cron channel, written to a durable ledger before the work starts and kept after; identified by `(channel_id, scheduled_for)`. See [Cron occurrences](../reference/admin-api/cron-occurrences.md).
-
-**Operation gates**: per-connector booleans under `operations` that permit or refuse `read`, `insert`, `update`, `delete`, `upsert` and `raw_write`. See [Connectors](../reference/connectors/operation-gates.md).
-
-**Plugin**: a definition carrying a WebAssembly component that adds task functions named `<plugin>.<label>`; its world imports nothing. See [Plugins](./plugins.md).
-
-**Provider**: what a connection runs on: a built-in driver, an edition provider such as `com.orion.kafka`, or an uploaded package, pinned by digest. See [connector_call](../reference/functions/connector_call.md).
-
-**Provider backend**: the code a node dispatches a provider's operations to: a driver, or an admitted workflow package. See [connector_call](../reference/functions/connector_call.md).
-
-**Provider package**: an uploaded, content-addressed archive declaring a provider's operations and schemas, admitted before any connection may use it. See [connector_call](../reference/functions/connector_call.md#workflow-provider-packages).
-
-**Quarantine**: the state of a channel that failed to build into a generation; it is refused at every ingress until a later build succeeds. See [Troubleshooting](../operate/maintain/troubleshooting.md).
-
-**Revision**: one immutable, numbered version of a deployment, a manifest member or a connection; a change is always a new revision. See [Deployment endpoints](../reference/admin-api/deployments.md).
-
-**Rollout bucket**: the stable request hash that decides which workflow revision serves a call during a percentage rollout. See [Workflow definition](../reference/workflows.md#rollout).
-
-**Route pattern**: a channel's REST method and path template, with parameters, matched against requests under `/api/v2/data/`. See [Data API](../reference/data-api.md#route-resolution).
-
-**Shaped response**: a response mode in which the workflow sets the HTTP status, headers and body through `data._orion.response`. See [Data API](../reference/data-api.md#shaped-responses).
-
-**Stub file**: canned connector responses, keyed by function and connector name, that let `dry-run` and `test` run a workflow offline. See [Test a workflow offline](../guides/author/testing.md#stub-the-calls-that-leave-the-process).
-
-**target_id**: the `connector_call` input naming the backend a call dispatches to: a driver id, or a package digest. See [connector_call](../reference/functions/connector_call.md#fields).
-
-**Task**: one step of a workflow: an `id`, a `name`, an optional `condition`, and one `function` with its `input`. See [Workflows](./workflows.md#tasks).
-
-**Task group**: an element of `tasks` that carries its own `tasks`: one condition guarding a contiguous run of steps. See [Workflow definition](../reference/workflows.md#task-groups).
-
-**Terminal step**: a task or group with `terminal: true`, which ends the workflow once it has run. See [Workflow definition](../reference/workflows.md#terminal-steps).
-
-**Tier**: the edition a provider package declares (`community`, `standard` or `enterprise`); a node admits a package at or below its own edition. See [Edition capability matrix](../reference/editions.md#package-tiers).
-
-**Trace**: the stored record of one channel execution: status, input, result, timings, and optional per-task detail. See [Traces and async processing](../operate/run/traces.md).
-
-**Trace DLQ**: the dead-letter table for async work that could not complete, retried with backoff. See [Admin API](../reference/admin-api/trace-dlq.md).
-
-**Workflow**: a pipeline of tasks selected by JSONLogic conditions, executed by the engine on behalf of a channel. See [Workflows](./workflows.md).
+- **Admin API (Control plane)**: The HTTP management endpoints under `/api/v2/admin/*` used to upload definitions, manage connections, plan and apply deployments, and inspect traces, schedules, and health. Driven from the terminal by `orion-cli`. See [Admin and Data REST API](../reference/api.md).
+- **Backpressure**: A per-channel concurrency limit (`max_concurrent_per_node`) shared across all ingresses. When in-flight requests reach the cap, additional requests are shed immediately with HTTP `503`. See [Channel configuration schema](../reference/channels.md).
+- **Case file (`*.case.json`)**: An offline regression test file executed by `orion-cli test` that runs a workflow against sample input and connector stubs and asserts expected output paths. See [Test and lint offline](../guides/testing.md).
+- **Channel**: A service endpoint that receives incoming traffic (over HTTP/REST, Cron, Kafka, GraphQL, or SSE), enforces ingress guards, and triggers a workflow. See [Channels and ingress](./channels.md).
+- **`channel_call`**: The built-in task function that invokes another channel's workflow in-process without a network hop while still enforcing the target channel's guards. See [Task functions](../reference/functions.md).
+- **Circuit breaker**: A per-`(channel, connector)` state machine on each node that opens after repeated downstream failures and fails fast with `503 CIRCUIT_OPEN` until a cooldown period elapses. See [Connectors and secrets](./connectors.md).
+- **Cluster mode**: A multi-replica deployment topology (<span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>) where nodes coordinate over a shared database and Redis cluster store. See [Multi-node clustering and HA](../enterprise/clustering.md).
+- **Cluster store**: The shared low-latency store (`[extensions.redis]` in `orion-ext`) that holds fleet-wide rate-limit counters, deduplication claims, and response caches across cluster nodes.
+- **Connection revision**: An immutable, numbered version of a connector's configuration stored on the server (`(connection_id, revision)`), containing public settings and `env://` or `vault://` secret locators. See [Connectors and secrets](./connectors.md).
+- **Connector**: A named connection to an external system (`http`, `db`, `cache`, or an edition provider) authored as a JSON file in a definition set and referenced by name in workflows. See [Connectors and secrets](./connectors.md).
+- **Convergence**: The state tracking which nodes in an instance or cluster have built and started serving a committed deployment revision. See [Deployments and revisions](./deployments.md).
+- **Cron channel**: A channel with `"protocol": "cron"` that runs a workflow on a six-field cron schedule with no external caller, recording each scheduled run as a durable occurrence. See [Schedule jobs with cron](../guides/scheduled-jobs.md).
+- **Data API (Data plane)**: The endpoints under `/api/v2/data/*` (and configured `server.data_mounts`) where deployed channels receive requests. See [Admin and Data REST API](../reference/api.md).
+- **Data context**: The per-request JSON document shared by all tasks in a workflow run, consisting of three top-level namespaces: `data`, `metadata`, and `temp_data`. See [Workflows and data context](./workflows.md).
+- **Deduplication (Idempotency key)**: A channel guard that claims a caller-supplied header value for `window_secs` and rejects duplicate deliveries within that window with `409 Conflict`. See [Configure channels and guards](../guides/channels.md).
+- **Definition**: A single workflow, channel, or WebAssembly plugin document stored on the server by the `sha256:` digest of its canonical bytes. See [Deployments and revisions](./deployments.md).
+- **Definition set**: A directory of workflow, channel, connector, shared fragment, and plugin files tracked in Git and compiled into a deployment by `orion-cli compile`.
+- **Deployment**: A manifest listing every workflow, channel, connection, and plugin revision a server serves, committed as an immutable numbered revision. See [Deployments and revisions](./deployments.md).
+- **Deployment head**: The latest committed deployment revision on an Orion instance. Every node reconciles toward serving the head revision.
+- **Driver**: A native channel transport or connector backend compiled into the Orion binary (such as `org.orion.postgresql` or `com.orion.kafka`).
+- **Edition**: The capability and support tier of an Orion node: `community` (`orion-server`), `standard` (`orion-ext`), or `enterprise` (`orion-ext`). See [Editions and capabilities](./editions.md).
+- **Engine**: The in-memory workflow execution runtime (`dataflow-rs`) compiled from the active deployment's workflows and plugins.
+- **Fragment**: A reusable sequence of tasks or JSON values defined in a shared file (`constants`, `errors`, `fragments`) and expanded at compile time via `$from`, `use`, `$use`, or `$each`. See [Author workflows](../guides/workflows.md).
+- **Generation (`RuntimeGeneration`)**: The combined in-memory snapshot containing both the compiled workflow engine and the channel snapshot (routes and guards), published atomically via `ArcSwap` during hot reload. See [Architecture and request lifecycle](./architecture.md).
+- **Hot reload**: Building a new runtime generation in the background and swapping it in atomically so new deployments take effect with zero dropped requests and no process restart.
+- **Ingress**: Any entry path through which work reaches a channel: synchronous HTTP, `/async` HTTP, in-process `channel_call`, scheduled `cron` occurrences, or extension drivers (`kafka`, `graphql`, `sse`).
+- **Ingress guards**: The security and traffic policies (`rate_limit`, `auth`, `oauth2_login`, `principal_rate_limit`, `origin_allow_list`, `validation_logic`, `deduplication`, `cache`, `backpressure`) enforced on a channel before its workflow runs.
+- **Loop**: A workflow configuration that repeats the workflow's task list sequentially up to a bounded `max` iteration count. See [Workflow schema and formatting](../reference/workflows.md).
+- **Manifest**: In a deployment, the JSON list of member entities (`workflow`, `channel`, `connection`, `plugin`), their digests, and their `requires` dependencies. In a WebAssembly plugin, the `plugin.toml` file.
+- **Occurrence**: A single scheduled execution instant of a cron channel, persisted in the database ledger with status tracking (`pending`, `running`, `completed`, `failed`, `misfired`, `cancelled`). See [Schedule jobs with cron](../guides/scheduled-jobs.md).
+- **Operation gates**: Per-connector boolean or method allow-lists under `operations` (such as `"delete": false` or `"methods": ["GET"]`) enforced at the connector level. See [Connectors and secrets](./connectors.md).
+- **Plugin**: A sandboxed WebAssembly component (`orion-plugin-sdk`) deployed as a definition that adds custom pure JSON-to-JSON task functions (`<plugin_id>.<function_name>`). See [Extend with WebAssembly plugins](../guides/plugins.md).
+- **Portable data dialect**: Orion's backend-neutral JSON query and write language (`data_query` and `data_write`) that lowers to parameterized SQL for PostgreSQL, MySQL, and SQLite. See [Connector schemas and portable data dialect](../reference/connectors.md).
+- **Provider**: A connector backend invoked via `connector_call`—either a built-in edition driver (`com.orion.*`) or an admitted custom provider package.
+- **Provider package**: A content-addressed bundle declaring a custom connector provider's schemas and workflow/Wasm implementation, managed with `orion-cli provider`. See [Custom provider packages](../enterprise/provider-packages.md).
+- **Quarantine**: The state of a channel or workflow that failed to load on a node (for example, due to a missing `env://` secret). Quarantined channels reject traffic while the rest of the deployment continues serving.
+- **Revision**: An immutable integer version number (`1`, `2`, `3`, ...) assigned to a deployment, manifest member, or connection.
+- **Rollout bucket**: A deterministic hash (`0..99`) of the caller identity used in Orion Standard and Enterprise to split channel traffic across multiple workflow revisions during a canary rollout. See [Canary rollouts and traffic splitting](../enterprise/traffic-splitting.md).
+- **Shaped response**: A channel response mode where the workflow explicitly controls the HTTP status code, headers, cookies, and body via `data._orion.response`. See [Configure channels and guards](../guides/channels.md).
+- **Stub file**: A JSON file mapping function names and connector IDs to canned responses so `orion-cli dry-run` and `orion-cli test` can run workflows offline without external databases or APIs. See [Test and lint offline](../guides/testing.md).
+- **Task**: A single step in a workflow (`id`, `name`, optional `condition`, and `function`).
+- **Task group**: A step in `tasks` that wraps a nested `tasks` array under a single shared `condition` and optional `terminal: true` flag.
+- **Terminal step**: A task or task group with `"terminal": true`, which stops the workflow cleanly as soon as that step completes.
+- **Trace**: The execution record of a workflow run, including status, timing, final output, and optional per-step changes. See [Execution traces, DLQ, and audit logs](../operate/traces-and-audit.md).
+- **Trace DLQ (Dead-letter queue)**: The persistence table where failed `/async` executions are stored and retried with backoff.
+- **Workflow**: An ordered pipeline of tasks and JSONLogic conditions executed by the Orion engine to process a request or event. See [Workflows and data context](./workflows.md).

@@ -1,71 +1,83 @@
-<!-- description: Everything in Orion is off or permissive by default because the defaults serve a laptop. Work through this before an instance takes traffic you did not send. -->
+<!-- description: Pre-production checklist for Orion: harden admin authentication, TLS, CORS, trusted proxies, secret locators, database pools, alerts, and backups. -->
 <!-- type: guide -->
 <!-- last_verified: 2026-11-16 -->
 
 # Production checklist
 
-Everything below is off or permissive by default, because the defaults serve a laptop. Work through this before an instance takes traffic you did not send it yourself. Each row names the page that owns the procedure.
+Orion's default configuration is tuned for local development on a laptop: admin authentication is disabled, TLS is off, CORS allows all origins, and SQLite writes to a local file. Before exposing an Orion instance to real traffic, work through the checklist below.
 
-## Before you start
+## What `ORION_ENVIRONMENT=production` enforces automatically
 
-You need admin access to the instance and to its config, and `orion-server` on a machine that can reach its database.
+Setting `environment = "production"` (or `ORION_ENVIRONMENT=production`) turns five unsafe defaults into immediate startup errors:
+1. `admin_auth.enabled = false` or an empty `admin_auth.api_keys` list.
+2. An admin API key shorter than 32 characters (when not hashed as `sha256:<digest>`).
+3. A wildcard `cors.allowed_origins = ["*"]`.
+4. `server.verbose_errors = true` (which would expose internal error details to callers).
+5. `cluster.enabled = true` combined with `storage.auto_migrate = true` (which would cause booting replicas to race database migrations).
 
-Setting `environment = "production"` makes exactly five things fatal at startup rather than advisory. They are `admin_auth` disabled, an admin key too weak to be one, a `[cors] allowed_origins = ["*"]` wildcard, `server.verbose_errors = true`, and `cluster.enabled` together with `storage.auto_migrate`. Every other row below, TLS and per-channel data-plane `auth` included, is never checked for you.
+Every other item in the pre-launch checklist—including TLS termination, per-channel data-plane authentication, trusted proxy CIDRs, and retention bounds—remains your responsibility to configure explicitly.
 
-## Before it takes traffic
+---
 
-| Area | Do this | Owner |
+## Pre-launch checklist
+
+| Area | Production requirement | Guide |
 |---|---|---|
-| **Environment** | `ORION_ENVIRONMENT=production`, so missing admin auth and wildcard CORS are startup errors instead of warnings. | [Deployment environment](../reference/configuration/environment.md) |
-| **Admin auth** | `admin_auth.enabled = true` with at least one strong key, ideally `sha256:<digest>`. Add a second key so rotation needs no downtime. | [Authenticate the admin plane](./run/security.md#authenticate-the-admin-plane) |
-| **Data-plane auth** | Decide per channel: an `auth` block, or a proxy in front. The data plane is open by default. | [Decide how the data plane authenticates](./run/security.md#decide-how-the-data-plane-authenticates) |
-| **TLS** | Terminate it: `server.tls` here, or at a load balancer in front. | [Terminate TLS](./run/security.md#terminate-tls) |
-| **CORS** | Replace `["*"]` with explicit origins. Declare any custom request header your browser client sends; `allow_credentials` requires explicit origins. | [Configuration › CORS](../reference/configuration/cors.md) |
-| **Trusted proxies** | `rate_limit.trusted_proxies` if anything proxies to Orion; otherwise every caller shares one rate-limit bucket. | [Trust the right proxies](./run/security.md#trust-the-right-proxies) |
-| **Secrets** | Every connector file authored with `env://` or `vault://`; `compile` refuses a literal. Set `storage.connector_encryption_key` to encrypt OAuth2 token state. | [Keep credentials out of the database](./run/security.md#keep-credentials-out-of-the-database) |
-| **API docs** | `server.docs.enabled = false` in production, so the admin surface is not published to anonymous callers. | [OpenAPI specification](../reference/openapi.md) |
-| **Database** | PostgreSQL or MySQL for anything multi-replica. Size `storage.max_connections` against the server's limit divided by the replica count. | [Requirements](./deploy/cluster.md#before-you-start) |
-| **Cluster** | More than one replica? On <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>, set `cluster.enabled = true` on every replica, point each at the edition's Redis store with `[extensions.redis]`, use PostgreSQL or MySQL with `auto_migrate = false`, and run `orion-server migrate` as a deploy step. Without it, a deployment reaches only the node that received it, and dedup, response caches and rate limits stay per node. | [Run a cluster](./deploy/cluster.md) |
-| **Extensions** | On Standard+, `[extensions.licence]` and `[extensions.redis]` reach each node as a mounted config file, because there is no `ORION_EXTENSIONS__` override. Set `tier` to the edition you bought; absent, the node reports `standard`. Pin the `orion-cli` revision to the same release as the `orion-ext` image. | [Extension settings](../reference/configuration/extensions.md) |
-| **Rate limiting** | `rate_limit.enabled = true`, sized per channel. | [Rate limiting](../reference/channel-config/rate_limit.md) |
-| **Circuit breakers** | `engine.circuit_breaker.enabled = true` when workflows call external services. Off by default. | [Stop calling a failing backend](./run/failure-handling.md#stop-calling-a-failing-backend) |
-| **Retention** | Bound `trace_queue.retention_hours` and `audit.retention_days`. Nothing else trims those tables. | [Keep the table bounded](./run/traces.md#keep-the-table-bounded) · [Bound retention](./run/audit-logs.md#bound-retention) |
-| **Observability** | `metrics.enabled = true` with a dedicated `bind_addr`, `logging.format = "json"`, `tracing.enabled = true` pointed at a collector. | [Monitor and alert](./run/monitoring.md) |
-| **Alerts** | The six silent signals, not only error rate and latency. | [What to alert on](./run/monitoring.md#what-to-alert-on) |
-| **Plugins** | Leave `plugins.enabled = false` unless you run one. If you do, name signing keys in `[plugins.trust]` (`orion-cli plugin keygen` creates one) and size the ceilings. The pooling allocator reserves `max_live_instances × max_memory_bytes` of virtual address space at startup, 16 GiB by default; count it where a container limits virtual memory. | [Bound what a plugin can do](./run/security.md#bound-what-a-plugin-can-do) · [Configuration › Plugins](../reference/configuration/plugins.md) |
-| **Expression budget** | `engine.ops_budget` whenever expressions come from someone other than the operator: tenant rules, partner-written conditions. Size it from the heaviest legitimate expression; a condition that crosses it fails closed to `false`, silently. | [Configuration › Engine](../reference/configuration/engine.md) |
-| **Shutdown** | Keep `shutdown_drain_secs + shutdown_force_timeout_secs` under your orchestrator's termination grace period. | [Shut down without dropping requests](./run/failure-handling.md#shut-down-without-dropping-requests) |
-| **Backups** | A backup that leaves the host, and a restore you have run once. | [Back up and restore](./maintain/backup-restore.md) |
+| **Environment** | Set `ORION_ENVIRONMENT=production` so missing admin keys and wildcard CORS fail closed at startup. | [Server configuration](../reference/configuration.md) |
+| **Admin authentication** | Set `admin_auth.enabled = true` with SHA-256 key digests (`sha256:<hex>`). Configure at least two keys for zero-downtime key rotation, and issue `read_only_api_keys` for dashboards and CI `plan`/`lint` jobs. | [Security and access control](./security.md#1-authenticate-the-admin-plane) |
+| **Data-plane authentication** | Configure an `auth` guard (`api_key`, `hmac`, or `jwt`) on every public channel, or authenticate requests at an upstream API gateway. `admin_auth` never protects `/api/v2/data/**`. | [Security and access control](./security.md#2-authenticate-data-plane-channels) |
+| **TLS** | Terminate TLS either at your load balancer/Ingress or directly on Orion (`[server.tls]`). | [Security and access control](./security.md#3-terminate-tls) |
+| **CORS** | Replace `["*"]` with explicit browser origins (`cors.allowed_origins`), or leave the list empty if no browser calls Orion directly. | [Security and access control](./security.md#7-configure-cors-and-origin-allowlists) |
+| **Trusted proxies** | Set `rate_limit.trusted_proxies` to your load balancer or pod CIDRs so rate limiting keys on client IPs rather than collapsing all traffic into the proxy's IP. | [Security and access control](./security.md#4-trust-reverse-proxy-cidrs) |
+| **Secrets & encryption** | Reference all connector and channel secrets with `env://` or `vault://` locators. Set `storage.connector_encryption_key` to encrypt persisted OAuth2 tokens at rest with AES-256-GCM. | [Security and access control](./security.md#5-keep-secrets-out-of-definitions-and-databases) |
+| **OpenAPI & Swagger UI** | Keep `server.docs.enabled = false` in production so `/docs` and `/api/v2/openapi.json` are not exposed anonymously. | [Security and access control](./security.md#9-close-unused-surfaces) |
+| **Database backend** | Use PostgreSQL or MySQL for multi-replica deployments, or mount a persistent volume for single-node SQLite. Size `storage.max_connections` so `max_connections × replicas` stays within your database limit. | [Deploy with Docker and Kubernetes](./deploy.md) |
+| **Cluster & extensions** | <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span> For multi-replica deployments, set `cluster.enabled = true` and `storage.auto_migrate = false`, mount `[extensions.licence]` and `[extensions.redis]` via config file, and run `orion-server migrate` as a release step. | [Multi-node clustering and HA](../enterprise/clustering.md) |
+| **Rate limits & circuit breakers** | Enable `[rate_limit]` per channel and set `engine.circuit_breaker.enabled = true` when workflows call external services. | [Timeouts, retries, and circuit breakers](./resilience.md) |
+| **Table retention** | Bound `trace_queue.retention_hours` and `audit.retention_days` so the `traces` and `audit_logs` tables do not grow without bound. | [Execution traces, DLQ, and audit logs](./traces-and-audit.md) |
+| **Logs, metrics, & alerts** | Set `logging.format = "json"`, expose Prometheus metrics on an internal `metrics.bind_addr`, and configure alerts for background job staleness, dropped audit rows, and DLQ growth. | [Monitoring, metrics, and alerts](./monitoring.md) |
+| **WebAssembly plugins** | Leave `plugins.enabled = false` unless your deployment uses plugins. When enabled, configure Ed25519 signing keys in `[plugins.trust]` and account for the 16 GiB virtual address space reservation in container memory limits. | [Security and access control](./security.md#8-sandbox-and-sign-webassembly-plugins) |
+| **Graceful shutdown** | Ensure your container orchestrator's kill grace period (`stop_grace_period` or `terminationGracePeriodSeconds`) exceeds `server.shutdown_drain_secs + server.shutdown_force_timeout_secs`. | [Timeouts, retries, and circuit breakers](./resilience.md#5-shut-down-without-dropping-requests) |
+| **Backups** | Configure off-host database backups and verify a full restore procedure before taking live traffic. | [Backups, upgrades, and troubleshooting](./maintenance.md#part-1-back-up-and-restore-state-databases) |
 
-## Verify
+---
 
-Three commands answer most of the list above against a real instance:
+## Verify your configuration before launch
+
+Run these three preflight commands against your production configuration file and definition set:
 
 ```bash
-orion-server validate-config -c config.toml   # config file + ORION_* environment
-orion-server test-connectivity -c config.toml # the database
-orion-cli lint ./definitions               # the definition set you deploy
+# 1. Validate config.toml and ORION_* environment variables
+orion-server validate-config -c config.toml
+
+# 2. Verify database connectivity and check for pending migrations
+orion-server test-connectivity -c config.toml
+
+# 3. Validate all workflow, channel, and connector definitions
+orion-cli lint ./definitions
 ```
 
-Then confirm the running instance agrees:
+Once the server is running, inspect its component health using an admin credential:
 
 ```bash
-curl -s http://localhost:8080/health | jq '{status, workflows_loaded, channels, connectors}'
+curl -s -H "Authorization: Bearer $ORION_ADMIN_KEY" \
+  http://localhost:8080/health | jq '{status, workflows_loaded, channels, connectors}'
 ```
 
-`"status": "degraded"` at HTTP 200 is the case worth checking for by hand. It means a connector failed to load or a channel is quarantined while the instance keeps serving everything else.
+Confirm that:
+- `status` is `"ok"` (an HTTP `200` response with `"status": "degraded"` indicates a connector failed to load or a channel is quarantined).
+- `channels.quarantined` and `connectors.failed_to_load` are both empty.
 
-## Before each deploy
+## Pre-deployment checklist for every release
 
-- **Read the version's upgrade notes** and run `lint` with the new binary over the definition set you deploy.
-- **Plan before you apply.** `orion-cli deployments plan -d` lists what an apply adds and removes, and commits nothing. See [Upgrade an instance](./maintain/upgrades.md).
-- **Back up first.** Every other step is reversible once this one happened.
-- **Migrate as a deploy step** in a cluster, not at boot.
-- **Roll one node at a time**, and confirm `/readyz` on each before moving on.
+1. **Back up the database** before applying schema migrations or upgrading binaries.
+2. **Validate with the target version**: Run `orion-cli lint ./definitions` and `orion-cli clippy ./definitions` using the CLI release matching the target server.
+3. **Preview the diff**: Run `orion-cli deployments plan -d dist/deployment` and verify that no shared channels or workflows are unintentionally removed.
+4. **Run migrations as a dedicated step**: In cluster mode, run `orion-server migrate` before rolling new pods.
+5. **Roll one replica at a time**: Wait for `/readyz` to return `200` on each replica before proceeding to the next.
 
 ## Next steps
 
-- [Secure an instance](./run/security.md): the security rows, in detail.
-- [Run a cluster](./deploy/cluster.md): the multi-replica rows.
-- [Monitor and alert](./run/monitoring.md): what to watch once this is live.
-- [Troubleshooting](./maintain/troubleshooting.md): when one of these turns out to have been missed.
+- [Deploy with Docker and Kubernetes](./deploy.md): Container and Helm deployment guides.
+- [Security and access control](./security.md): Deep dive into authentication, TLS, secrets, and SSRF controls.
+- [Monitoring, metrics, and alerts](./monitoring.md): Production Prometheus alert rules and health probes.

@@ -138,21 +138,6 @@
   opacity: 1;
 }
 
-/* ── asciinema player embeds ── */
-.asciinema-player {
-  margin: 1.25em 0;
-  border: 1px solid var(--p-border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.asciinema-caption {
-  display: block;
-  margin: -0.75em 0 1.5em;
-  font-size: 0.85em;
-  opacity: 0.6;
-}
-
 /* ============================================================
    ReactFlow diagrams (orion-diagram blocks)
    ============================================================ */

@@ -36,9 +36,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use orion_common::config::AppConfig;
 
 // The book lives at the repository root, one level above this package.
-const REFERENCE_DIR: &str = concat!(
+const REFERENCE_MD: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../src/reference/configuration"
+    "/../src/reference/configuration.md"
 );
 /// Real config fields that have no default value to state: `Option<T>` fields
 /// (unset means "don't send this setting at all") and the element fields of
@@ -237,75 +237,63 @@ const NOT_A_SERVER_SETTING: &[(&str, &str, &str)] = &[
     ),
     (
         "ORION_SERVER__PORTT",
-        "src/reference/configuration/how-settings-are-resolved.md",
+        "src/reference/configuration.md",
         "the worked example of the misspelling C4d refuses",
     ),
     (
         "ORION_ENVIRONMEN",
-        "src/reference/configuration/how-settings-are-resolved.md",
+        "src/reference/configuration.md",
         "the worked example of the top-level near-miss C4d also refuses",
     ),
     (
         "ORION_SERVER_PORT",
-        "src/reference/configuration/how-settings-are-resolved.md",
+        "src/reference/configuration.md",
         "the worked example of the one shape C4d cannot refuse — a setting typed \
          with a single underscore, which is also exactly the service link a \
          Service named `orion-server` produces",
-    ),
-    (
-        "ORION_CORS_ALLOWED_ORIGINS",
-        "",
-        "compose interpolation, resolved by `docker compose` in the operator's \
-         shell; the container's environment block spells out the real \
-         ORION_CORS__ALLOWED_ORIGINS it fills",
     ),
     // The upgrade guide teaches the same rule the reference page does, so it
     // quotes the same counter-examples. Scoped per path rather than blanket,
     // for the reason the doc comment above gives.
     (
         "ORION_SERVER__PORTT",
-        "src/releases/upgrade-to-1.0/config-keys.md",
+        "src/releases/history-1.x.md",
         "the misspelling C4d refuses, quoted in the error message the section \
          shows an operator",
     ),
     (
         "ORION_SERVER_PORT",
-        "src/releases/upgrade-to-1.0/config-keys.md",
+        "src/releases/history-1.x.md",
         "the one shape C4d cannot refuse, quoted as the caveat: a setting typed \
          with a single underscore is indistinguishable from a service link",
     ),
     (
         "ORION_ADMIN_AUTH__API_KEY",
-        "src/releases/upgrade-to-1.0/config-keys.md",
+        "src/releases/history-1.x.md",
         "quoted as the mistake, telling readers who copied it that the real \
          name is the plural ORION_ADMIN_AUTH__API_KEYS",
     ),
     (
         "ORION_DB__PASSWORD",
-        "src/releases/upgrade-to-1.0/config-keys.md",
+        "src/releases/history-1.x.md",
         "a connector's `env://` secret, not a setting — the example of the one \
          class of name that has to move under ORION_SECRET_* because it \
          follows the override grammar",
     ),
     (
         "ORION_QUEUE__WORKERS",
-        "src/releases/upgrade-to-1.0/config-keys.md",
+        "src/releases/history-1.x.md",
         "quoted in the historical 1.0 upgrade guide as the pre-1.0 name replaced by \
          ORION_TRACE_QUEUE__WORKERS",
     ),
     (
         "ORION_KAFKA__MAX_INFLIGHT",
-        "src/releases/upgrade-to-1.0/config-keys.md",
-        "quoted in the historical 1.0 upgrade guide as the pre-1.0 setting removed in K4",
-    ),
-    (
-        "ORION_KAFKA__MAX_INFLIGHT",
-        "src/releases/upgrade-to-1.0/index.md",
+        "src/releases/history-1.x.md",
         "quoted in the historical 1.0 upgrade guide as the pre-1.0 setting removed in K4",
     ),
     (
         "ORION_ENGINE__RELOAD_TIMEOUT_SECS",
-        "src/releases/upgrade-to-1.0/renames-and-removals.md",
+        "src/releases/history-1.x.md",
         "quoted in the historical 1.0 upgrade guide as the pre-1.0 setting removed in 1.0",
     ),
 ];
@@ -518,13 +506,7 @@ struct Documented {
 
 /// Every page of the configuration reference, sorted by name.
 fn reference_pages() -> Vec<std::path::PathBuf> {
-    let mut pages: Vec<_> = std::fs::read_dir(REFERENCE_DIR)
-        .expect("list src/reference/configuration")
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|e| e == "md"))
-        .collect();
-    pages.sort();
-    pages
+    vec![std::path::PathBuf::from(REFERENCE_MD)]
 }
 
 /// Settings parsed out of the reference pages' tables, paired with the env
@@ -534,10 +516,7 @@ fn reference_settings() -> Vec<(Documented, Option<String>)> {
 
     for page in reference_pages() {
         let source = std::fs::read_to_string(&page).unwrap();
-        let file = format!(
-            "src/reference/configuration/{}",
-            page.file_name().unwrap().to_string_lossy()
-        );
+        let file = "src/reference/configuration.md".to_string();
         for (index, line) in source.lines().enumerate() {
             let Some(cells) = table_cells(line) else {
                 continue;

@@ -1,131 +1,99 @@
-<!-- description: What supported means for Orion 2.x: which versions receive fixes, what an upgrade guarantees, and which toolchains, databases and platforms are tested. -->
+<!-- description: Versioning, support window, compatibility guarantees, Rust MSRV policy, database backends, and platform support for Orion 2.x. -->
 <!-- type: reference -->
-<!-- last_verified: 2026-09-14 -->
+<!-- last_verified: 2026-11-16 -->
 
 # Versioning and support policy
 
-What "supported" means for Orion 2.x. Which versions receive fixes, what an upgrade guarantees, and which toolchains, databases and platforms each release is tested against.
+This page defines what "supported" means for Orion 2.x, which releases receive fixes, what an upgrade guarantees, and which toolchains, databases, and platforms each release is tested against.
 
 ## Supported versions
 
-**The latest release is the supported release.** Fixes land on `main` and ship as a patch release of the current minor version. That includes security fixes. Older releases are not back-patched.
+**The latest release is the supported release.** Bug fixes and security fixes land on `main` and ship as a patch release of the current minor version. Older releases are not back-patched.
 
-This is a deliberate consequence of how Orion ships: a single binary with embedded, per-backend database migrations and a documented upgrade path. There is no supported configuration that requires staying on an old release. The answer to a bug in an old release is always the newest one.
+Orion ships as a single binary with embedded database migrations for every supported backend and a documented upgrade path. Because no supported configuration requires staying on an older release, upgrading to the newest release is always the path to receive fixes.
 
-| Version            | Status                                     |
-|--------------------|--------------------------------------------|
-| Latest 2.x release | Supported — receives all fixes             |
-| Older 2.x releases | Upgrade to the latest release for fixes    |
-| 1.x releases       | Not back-patched — [upgrade to 2.x](./upgrade-to-2.0.md); there is no in-place path, so plan the move |
-| 0.x releases       | End of life                                |
-
-Security vulnerabilities should be reported privately. See the [security policy](https://github.com/GoPlasmatic/Orion/blob/main/SECURITY.md).
-
-## Editions and support
-
-Orion has three editions. Community is the open-source `orion-server`, under Apache-2.0, supported through the public issue tracker. Standard and Enterprise are the licensed `orion-ext` artifact, which composes the Community node with the extension drivers, providers and cluster store. They are one binary and serve the same features; they differ in support terms. [Editions](../concepts/editions.md) states the capability boundary, and [the capability matrix](../reference/editions.md) lists every gate.
-
-The licensed artifact follows the Community release it builds on. Orion Ext's version is the Community version, and every `orion-*` dependency names one revision. An upgrade therefore moves the server, the CLI and the edition together. There is no separate edition release train and no supported mixed-version estate.
-
-## Versioning
-
-Orion follows [semantic versioning](https://semver.org):
-
-- **Patch** (`2.0.x`) — bug and security fixes. No config, API, or database
-  schema changes beyond what the fix requires; always safe to roll forward.
-- **Minor** (`2.x.0`) — new capabilities, new configuration keys (with
-  defaults that preserve existing behaviour), additive database migrations,
-  and possibly an MSRV bump (see [Rust toolchain](#rust-toolchain-and-the-msrv)).
-- **Major** (`3.0.0`) — reserved for breaking changes to the Admin/Data APIs,
-  configuration semantics, or workflow/channel definitions. A major release
-  may start the state database over, as 2.0.0 did; there is no promise of an
-  in-place upgrade between majors.
-
-The versioned API prefix (`/api/v2/`) names the contract generation, and the crate version tracks it. `/api/v2/` endpoints keep their request and response contracts for the life of the 2.x line. Endpoint additions and new optional fields are not considered breaking.
-
-The v2 admin contract also reports an `api_version`, and `orion-cli` refuses a server reporting another. It moves whenever a change could make the previous client misread an answer or send a refused request, which can be inside a 2.x minor. Upgrade the server and the CLI together.
-
-### What the 2.x promise covers
-
-| Surface | Covered? |
+| Version | Status |
 |---|---|
-| HTTP Admin and Data APIs under `/api/v2/` | **Yes** — the contract above |
-| Configuration keys and their semantics | **Yes** — a minor may add keys with behaviour-preserving defaults, never repurpose one |
-| Workflow, channel and connection definitions | **Yes** — a document that validates on 2.0 validates for the 2.x line |
-| Prometheus metric names and labels | **Yes** — renames wait for a major |
-| The `orion-api` / `orion-client` **Rust** APIs | **No** — see [What an upgrade guarantees](#upgrade-guarantees) |
-| The extension API (`orion-extension-api`, the `orion` library's `run`, `extensions` and `config`) | **No** — it grows with its first consumer; pin exact versions (below) |
-| The **database schema** | **No** — internal |
+| Latest 2.x release | Supported — receives all bug and security fixes |
+| Older 2.x releases | Upgrade to the latest release for fixes |
+| 1.x releases | Not back-patched — [upgrade to 2.0](./upgrade-to-2.0.md) (requires a fresh database and definition migration) |
+| 0.x releases | End of life |
 
-**The client crates share the server's version.** `orion-api` and
-`orion-client` are published so `orion-cli` and third-party tools can share the server's exact wire types. Every crate in the workspace carries the same version number — `orion-api` 2.1.0 is the contract `orion-server` 2.1.0 serializes. Their *Rust* surface is still outside the support contract. A version bump is not a promise about it: pin an exact version if you build against these crates directly. What *is* promised, whichever crate version you read it with, is the **wire format** they describe — that is the HTTP contract above.
+Report security vulnerabilities privately following the [security policy](https://github.com/GoPlasmatic/Orion/blob/main/SECURITY.md).
 
-**So does the extension API.** An edition binary composes a node from the `orion` library (`orion-server`'s library target). It implements `orion-extension-api`'s traits, which it reaches as `orion::extension_api` at the matching version. That Rust surface is not covered either. A 2.x minor may add a method, change a type or move an item when a new extension needs it. Every `orion-*` crate requires its siblings at an exact version (`=2.x.y`), so a build never mixes two. An edition pins the same way and moves with each release.
+## Editions and release alignment
 
-Releases up to and including 1.3.1 predate this rule. The two crates were versioned independently until then, and `orion-api` 1.0.4 / `orion-client` 1.0.5 are the last published under the old scheme. An existing pin on one of those keeps resolving; it no longer matches its server's number.
+Orion is available in three editions:
 
-**The database schema is internal.** Tables, views, triggers and column
-spellings may change in any minor through a migration. Read Orion's data through the HTTP API. If you query the tables directly, for dashboards, ETL or reporting, pin what you read to a specific server version. Re-check it on every upgrade: a 2.x minor may rename a column.
+- **Community**: Open-source `orion-server` under Apache-2.0, supported through the public GitHub issue tracker.
+- **Standard and Enterprise**: The licensed `orion-ext` binary, which combines the Community node with enterprise channel drivers, connector providers, traffic splitting, and the Redis cluster state store. Standard and Enterprise share the same binary and features; they differ in commercial support terms. See [Editions](../concepts/editions.md) and [Standard & Enterprise overview](../enterprise/overview.md).
 
-## Deprecations
+The `orion-ext` binary tracks the exact Community version it builds on, and every `orion-*` workspace dependency pins a single revision (`=2.x.y`). Upgrading moves the server, the CLI, and the edition together. Mixed-version clusters or mismatched CLI and server versions are not supported.
 
-**2.0.0 accepts no 1.x spellings.** Where 2.0 renamed or removed a key, the old name is refused rather than silently accepted. Nothing is scheduled for removal in a 2.x minor. Deprecations introduced *after* 2.0 are announced in a minor release with the old spelling still working, and removed no earlier than the next major.
+## Semantic versioning
 
-How a refused name fails differs by surface. The config file and environment give a startup error. A definition is refused when it is uploaded and when a node loads it. [Upgrade to 2.0.0](./upgrade-to-2.0.md) lists what 2.0 refused.
+Orion follows [Semantic Versioning](https://semver.org):
+
+- **Patch (`2.0.x`)**: Bug and security fixes. No configuration, API, or database schema changes beyond what the fix requires. Always safe to roll forward.
+- **Minor (`2.x.0`)**: New capabilities, new configuration keys (with defaults that preserve existing behavior), additive database migrations, and potential MSRV updates (see [Rust toolchain and MSRV](#rust-toolchain-and-msrv)).
+- **Major (`3.0.0`)**: Reserved for breaking changes to the Admin or Data APIs, configuration semantics, or workflow and channel definitions. Major releases may start a clean state database, as 2.0.0 did, without an in-place database migration path.
+
+The versioned API prefix (`/api/v2/`) identifies the HTTP contract generation. All `/api/v2/` endpoints keep their request and response schemas for the life of the 2.x series. Adding new endpoints or optional response fields is non-breaking.
+
+The v2 Admin API also reports an `api_version` in `/api/v2/admin/info`, and `orion-cli` checks this version before running commands. If a minor release introduces a wire addition that requires a newer CLI, `api_version` increments and `orion-cli` prompts you to upgrade the CLI alongside the server.
+
+### Compatibility guarantees in 2.x
+
+| Surface | Covered by 2.x compatibility? |
+|---|---|
+| HTTP Admin and Data APIs under `/api/v2/` | **Yes** — request and response contracts remain stable across 2.x |
+| Configuration keys and semantics | **Yes** — minor releases only add keys with behavior-preserving defaults |
+| Workflow, channel, and connection definitions | **Yes** — definitions that validate on 2.0 remain valid across 2.x |
+| Prometheus metric names and labels | **Yes** — metric renames wait for a major version |
+| `orion-api` and `orion-client` Rust APIs | **No** — internal Rust types may change in minor releases; pin exact crate versions |
+| Extension API (`orion-extension-api`, `orion::extension_api`) | **No** — internal trait surface; pin exact crate versions (`=2.x.y`) |
+| State database schema | **No** — internal implementation detail; query Orion state through the HTTP API |
+
+**Client and extension crates**: `orion-api`, `orion-client`, and `orion-extension-api` share the server's version number (`2.x.y`). While the HTTP wire format is stable across 2.x, the Rust struct and trait definitions may evolve in minor releases. If you depend on these crates in Rust code, pin an exact version (`=2.0.0`).
+
+**Database schema**: Tables, views, triggers, and column names in the state database may change in any minor release through embedded migrations. Always read operational data through the HTTP Admin API rather than querying SQLite, PostgreSQL, or MySQL tables directly.
+
+## Deprecation policy
+
+Orion 2.0.0 removes all deprecated 1.x spellings cleanly and rejects unknown configuration or definition fields at load time.
+
+Any deprecation introduced *after* 2.0.0 is announced in a minor release with the old spelling continuing to work, and is removed no earlier than the next major release (`3.0.0`).
 
 ## Upgrade guarantees
 
-- Each release that changes behaviour documents its upgrade path from the
-  previous one ([Upgrading to 2.0.0](./upgrade-to-2.0.md)). Upgrades are
-  supported **release to release**; when skipping releases, read each
-  intermediate upgrade page. Orion 2.0.0 starts the state database over, so
-  nothing upgrades a 1.x database in place.
-- Database migrations are embedded in the binary for all three backends and
-  run at boot (`storage.auto_migrate`, default `true`) or explicitly through
-  `orion-server migrate`. Shipped migrations are frozen — a released
-  migration file is never edited, only appended to.
-- **Take a database backup before upgrading.** Migrations are applied
-  forward-only; rolling back to an older Orion after a migration has run is
-  not supported.
+- **Release-to-release upgrades**: Upgrades are tested and supported between consecutive minor releases. When skipping minor versions, review the release notes for each intermediate version.
+- **Embedded forward-only migrations**: Database migrations are compiled into the server binary for SQLite, PostgreSQL, and MySQL. They run automatically at startup when `storage.auto_migrate = true` (the default for single-node deployments) or explicitly via `orion-server migrate` in clustered deployments.
+- **Back up before upgrading**: Because database migrations are forward-only, rolling a binary back after a migration has applied is not supported without restoring from a backup. See [Backups, upgrades, and troubleshooting](../operate/maintenance.md).
 
-## Rust toolchain and the MSRV
+## Rust toolchain and MSRV
 
-The minimum supported Rust version is **1.98**, declared as `rust-version` in `Cargo.toml` and enforced by a dedicated CI job. An MSRV bump is a **minor** release at most and is called out in the changelog. This matters only when building from source — the released binaries and images are self-contained.
+The minimum supported Rust version (MSRV) for building Orion from source is **1.98**, declared as `rust-version` in `Cargo.toml` and enforced in CI. MSRV increases happen only in minor or major releases and are noted in the changelog. Prebuilt binaries and container images are self-contained and do not require a Rust toolchain.
 
-Since 1.6.0 the MSRV also tracks [Wasmtime's policy](https://docs.wasmtime.dev/stability-release.html) (stable minus two), because the [plugin sandbox](../reference/plugin-manifest.md) links it. The number is unchanged by that, because Wasmtime's floor is currently below Orion's. A Wasmtime upgrade in a future minor can move it even when nothing in Orion's own code needs a newer language feature. Wasmtime and Cranelift add roughly 6 MB to a release binary. They are compiled in on every target, and off by default at runtime (`plugins.enabled = false` constructs no engine).
+Because Orion embeds the Wasmtime WebAssembly runtime for the plugin sandbox, Orion's MSRV also tracks [Wasmtime's MSRV policy](https://docs.wasmtime.dev/stability-release.html) (stable minus two). Wasmtime and Cranelift are compiled into all release targets (adding roughly 6 MB to the binary) but remain inert at runtime unless `plugins.enabled = true`.
 
-## Database backends
+## Supported database backends
 
-The storage backend is selected at runtime from the `storage.url` scheme. All three are covered by CI. The full suite runs on SQLite, and dedicated jobs run the storage and cluster suites against real PostgreSQL and MySQL servers.
+Orion selects the state database backend at runtime from the `storage.url` scheme. All three backends are tested in CI.
 
-| Backend    | Notes |
-|------------|-------|
-| SQLite     | Default; embedded, zero-configuration. The reference backend. Not usable in [cluster mode](../operate/deploy/cluster.md). |
-| PostgreSQL | Supports cluster mode. Project deployment artifacts and examples use PostgreSQL 16. |
-| MySQL      | MySQL 8+; supports cluster mode. |
+| Backend | Support notes |
+|---|---|
+| **SQLite** | Default embedded backend (`sqlite:data/orion.db?mode=rwc`). Zero external dependencies; ideal for local development and single-node deployments. Cannot be used for multi-node clustering. |
+| **PostgreSQL** | Production backend for single-node and clustered deployments. Tested against PostgreSQL 16 in CI and official Helm/Compose manifests. |
+| **MySQL** | Production backend for single-node and clustered deployments. Requires MySQL 8.0+. |
 
-## Platforms
+## Supported platforms
 
-- **Docker images**: published to `ghcr.io/goplasmatic/orion` for
-  `linux/amd64` and `linux/arm64` (Debian trixie-slim base).
-- **Prebuilt binaries**: GitHub release artifacts (shell/PowerShell
-  installers and Homebrew) for `aarch64-apple-darwin`,
-  `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` and
-  `x86_64-pc-windows-msvc`. The rationale for what is and is not on that
-  list lives on the [Deploy with Docker](../operate/deploy/docker.md) page.
-- **From source**: use the Rust version declared by the checked-out release's
-  `Cargo.toml` (`rust-version`; 1.98 in the release documented here). Linux and
-  macOS are exercised routinely, and CI runs on Linux.
+- **Container images**: Multi-arch images published to `ghcr.io/goplasmatic/orion` for `linux/amd64` and `linux/arm64` (based on Debian `trixie-slim`).
+- **Prebuilt binaries**: Released on GitHub and Homebrew for `aarch64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, and `x86_64-pc-windows-msvc`.
+- **Source builds**: Supported on Linux and macOS using the Rust toolchain version specified in `Cargo.toml`.
 
-## What support is (and is not)
+## Related pages
 
-Orion is open source under the Apache-2.0 license. "Supported" here describes where fixes ship, not a service-level commitment. Issues and vulnerability reports are triaged on a best-effort basis by the maintainers, with security reports prioritized. There is no commercial support offering at this time.
-
-## Related
-
-- [Upgrades](../operate/maintain/upgrades.md): the standing procedure, and how a
-  renamed key fails on each surface.
-- [Upgrading to 2.0.0](./upgrade-to-2.0.md): the per-version guide
-  for the current release.
-- [Configuration Reference](../reference/configuration/index.md): the settings this policy
-  freezes.
+- [Upgrade to Orion 2.0](./upgrade-to-2.0.md) — breaking changes and migration steps from 1.x
+- [Backups, upgrades, and troubleshooting](../operate/maintenance.md) — operational upgrade and backup procedures
+- [Server configuration and environment variables](../reference/configuration.md) — full configuration reference

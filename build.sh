@@ -114,7 +114,14 @@ done
 # canonical at all, so this pass is what makes the site legible to search and
 # answer engines. Node rather than python3: `npx wrangler deploy` is the deploy
 # command, so Node is guaranteed on Cloudflare's build image.
-node seo.mjs
+if node -e "" >/dev/null 2>&1; then
+  NODE=node
+elif [ -x /opt/homebrew/bin/node ]; then
+  NODE=/opt/homebrew/bin/node
+else
+  NODE=node
+fi
+"$NODE" seo.mjs
 
 # _redirects carries the "/" → /index.html proxy that wrangler.jsonc's
 # html_handling:"none" requires; _headers carries the security and font-caching

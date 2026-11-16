@@ -1,46 +1,168 @@
-<!-- description: Start Orion in Docker, upload one workflow and one channel, deploy them, and call your first live endpoint. Under five minutes, with nothing to build. -->
+<!-- description: Run Orion locally, write a workflow and channel, test offline, deploy with orion-cli, and call your first live endpoint in under five minutes. -->
 <!-- type: quickstart -->
-<!-- last_verified: 2026-10-25 -->
+<!-- last_verified: 2026-11-16 -->
 
 # Quickstart
 
-Start Orion, define one service as two JSON documents, and call it over HTTP. The service flags any order over $10,000. The commands below run in under 5 seconds once the image is local; the first run also pulls 204 MB.
+In this quickstart, you start an Orion server, define an order-triage service using two JSON files (`workflow.json` and `channel.json`), test the logic offline, deploy it, and call the live HTTP endpoint. The service inspects incoming orders and flags any order over `$10,000`.
 
 ## Before you start
 
 Tested with Orion 2.0.0-rc.1. You need:
 
-- Docker Engine or Docker Desktop
+- **`orion-cli`** and either **Docker** or **`orion-server`** installed (see [Install and run Orion](./install.md) if you need to install them—via Homebrew: `brew install GoPlasmatic/tap/orion-server GoPlasmatic/tap/orion-cli`)
 - `curl` and `jq`
-- port `8080` free on your machine
+- Port `8080` free on your machine
 
-The commands use a POSIX shell. On Windows, run them from WSL.
+## 1. Start the Orion server
 
-## 1. Start Orion
+Start Orion locally. It uses an embedded SQLite database by default, so there is no external database to set up:
 
-Run the published image; its database is embedded, so there is nothing else to start:
+<div class="tabs">
+<section data-tab="CLI">
+
+```bash
+orion-server
+```
+
+</section>
+<section data-tab="Docker">
 
 ```bash
 docker run --name orion-quickstart -d -p 8080:8080 \
   ghcr.io/goplasmatic/orion:latest
 ```
 
-Wait until the server answers its liveness probe:
+</section>
+</div>
+
+In a new terminal, configure `orion-cli` to talk to your local server and verify that it is healthy:
+
+<div class="tabs">
+<section data-tab="CLI">
+
+```bash
+orion-cli config set-server http://localhost:8080
+orion-cli health
+```
+
+</section>
+<section data-tab="curl">
 
 ```bash
 curl --retry 10 --retry-delay 1 --retry-all-errors -fsS \
   http://localhost:8080/healthz
 ```
 
-Output:
+</section>
+</div>
+
+Expected output:
 
 ```json
 {"status":"ok"}
 ```
 
-## 2. Upload the workflow
+## 2. Create the workflow and channel
 
-A workflow is the logic. This one has two tasks: parse the request, then flag it when `total` is over 10,000. Upload it to the admin API and keep the digest it answers:
+Create a directory called `quickstart-orders` for your service definitions:
+
+```bash
+mkdir -p quickstart-orders
+```
+
+A **workflow** defines the business logic as an ordered list of tasks. Create `quickstart-orders/workflow.json` with two tasks: one to parse the incoming JSON payload into `data.order`, and a second to flag the order when `data.order.total` exceeds `10000`:
+
+```bash
+cat > quickstart-orders/workflow.json <<'JSON'
+{
+  "workflow_id": "quickstart-orders",
+  "name": "High-value order",
+  "condition": true,
+  "tasks": [
+    {
+      "id": "parse",
+      "name": "Parse payload",
+      "function": {
+        "name": "parse_json",
+        "input": { "source": "payload", "target": "order" }
+      }
+    },
+    {
+      "id": "flag",
+      "name": "Flag order",
+      "condition": { ">": [{ "var": "data.order.total" }, 10000] },
+      "function": {
+        "name": "map",
+        "input": {
+          "mappings": [
+            { "path": "data.order.flagged", "logic": true },
+            {
+              "path": "data.order.alert",
+              "logic": { "cat": ["High-value order: $", { "var": "data.order.total" }] }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+JSON
+```
+
+A **channel** exposes the workflow on an HTTP route or schedule. Create `quickstart-orders/channel.json` to bind `POST /orders` to the `quickstart-orders` workflow:
+
+```bash
+cat > quickstart-orders/channel.json <<'JSON'
+{
+  "channel_id": "orders",
+  "name": "orders",
+  "channel_type": "sync",
+  "protocol": "rest",
+  "route_pattern": "/orders",
+  "methods": ["POST"],
+  "workflow_id": "quickstart-orders"
+}
+JSON
+```
+
+## 3. Test the workflow offline
+
+Before deploying anything to the server, validate the definition set and run the workflow locally in `orion-cli`:
+
+```bash
+orion-cli lint quickstart-orders
+orion-cli dry-run -w quickstart-orders/workflow.json \
+  -i <(printf '%s' '{"order_id": "ORD-9182", "total": 25000}') | jq '.output.order'
+```
+
+Expected output:
+
+```json
+{
+  "order_id": "ORD-9182",
+  "total": 25000,
+  "flagged": true,
+  "alert": "High-value order: $25000"
+}
+```
+
+`lint` and `dry-run` execute the real Orion workflow engine in-process without needing a running server or network connection.
+
+## 4. Compile and deploy
+
+Compile the `quickstart-orders` directory into a deployment bundle and apply it to your local server:
+
+<div class="tabs">
+<section data-tab="CLI">
+
+```bash
+orion-cli compile quickstart-orders -o dist/deployment
+orion-cli deployments apply -d dist/deployment --yes
+```
+
+</section>
+<section data-tab="curl">
 
 ```bash
 WF=$(curl -fsS -X POST http://localhost:8080/api/v2/admin/definitions \
@@ -61,27 +183,13 @@ WF=$(curl -fsS -X POST http://localhost:8080/api/v2/admin/definitions \
         ] } } }
     ]
   }}' | jq -r .digest)
-```
 
-The server validates the definition the way a node loads it, and answers `{"digest": "sha256:…", "kind": "workflow", …}`. Uploading serves nothing yet. A definition is stored by its content, and has no name or version until a deployment gives it one.
-
-## 3. Upload the channel
-
-A channel is the endpoint. It binds a route to a workflow. The binding lives in the deployment, not in the channel:
-
-```bash
 CH=$(curl -fsS -X POST http://localhost:8080/api/v2/admin/definitions \
   -H 'Content-Type: application/json' \
   -d '{"kind": "channel", "definition": {
     "name": "orders", "channel_type": "sync", "protocol": "rest",
     "route_pattern": "/orders", "methods": ["POST"] }}' | jq -r .digest)
-```
 
-## 4. Deploy them
-
-A deployment names everything the node serves. This one deploys the workflow as `quickstart-orders` and the channel as `orders`, and says the channel requires the workflow:
-
-```bash
 curl -fsS -X POST http://localhost:8080/api/v2/admin/deployments \
   -H 'Content-Type: application/json' \
   -d '{"idempotency_key": "quickstart-1", "base_revision": 0, "reason": "quickstart",
@@ -94,11 +202,24 @@ curl -fsS -X POST http://localhost:8080/api/v2/admin/deployments \
     ] } }'
 ```
 
-The answer carries `"committed_revision": 1` and an `evaluation` with `"converged": true`. Orion built a new engine from the deployment and swapped it in. Nothing restarts and no request is dropped. `base_revision: 0` means "only if nothing is deployed yet", so two deploys racing on one instance cannot both win.
+</section>
+</div>
 
-## 5. Call it
+When you apply the deployment, Orion uploads the content-addressed definitions, commits revision `1` as the server's active deployment head, compiles a new runtime generation, and swaps it in atomically without restarting or dropping requests.
 
-Send an order over the threshold to the route you declared:
+## 5. Call the live endpoint
+
+Send a high-value order (`total: 25000`) to your new service:
+
+<div class="tabs">
+<section data-tab="CLI">
+
+```bash
+orion-cli send orders -d '{"order_id": "ORD-9182", "total": 25000}'
+```
+
+</section>
+<section data-tab="curl">
 
 ```bash
 curl -fsS -X POST http://localhost:8080/api/v2/data/orders \
@@ -106,7 +227,10 @@ curl -fsS -X POST http://localhost:8080/api/v2/data/orders \
   -d '{ "data": { "order_id": "ORD-9182", "total": 25000 } }'
 ```
 
-Output, with an `id` that differs on every call:
+</section>
+</div>
+
+Expected response (the `id` is the unique execution trace ID for this call):
 
 ```json
 {
@@ -126,9 +250,19 @@ Output, with an `id` that differs on every call:
 }
 ```
 
-## Verify
+## Verify the condition
 
-Send an order under the threshold and confirm the `flag` task stays quiet:
+Send an order below the threshold (`total: 50`) to confirm that the `flag` task only runs when its condition matches:
+
+<div class="tabs">
+<section data-tab="CLI">
+
+```bash
+orion-cli send orders -d '{"order_id": "ORD-0001", "total": 50}'
+```
+
+</section>
+<section data-tab="curl">
 
 ```bash
 curl -fsS -X POST http://localhost:8080/api/v2/data/orders \
@@ -136,27 +270,28 @@ curl -fsS -X POST http://localhost:8080/api/v2/data/orders \
   -d '{ "data": { "order_id": "ORD-0001", "total": 50 } }'
 ```
 
-The `data.order` object comes back with `order_id` and `total` only. There is no `flagged` and no `alert`, because the task's condition was false and the task did not run.
+</section>
+</div>
 
-## What just happened
-
-You uploaded two definitions, deployed them, and Orion did the rest. The workflow holds the logic as an ordered list of tasks, each with an optional JSONLogic condition. The channel binds a route to that workflow and answers the request. Everything around them is the runtime's: routing, numbered deployments with rollback, hot reload, validation, and the trace behind that `id`. It is the same for every service you put on it.
-
-Congratulations: you have a live Orion service.
+This time `data.order` returns only `order_id` and `total`. Because `total > 10000` evaluated to `false`, Orion skipped the `flag` task.
 
 ## Clean up
 
-Stop and remove the container:
+If you ran Orion in Docker, stop and remove the container:
 
 ```bash
 docker stop orion-quickstart && docker rm orion-quickstart
 ```
 
-The container held its database internally, so removing it removes the definitions too.
+Remove the temporary files if you no longer need them:
+
+```bash
+rm -rf quickstart-orders dist
+```
 
 ## Next steps
 
-- [Build your first service](./tutorials/first-service.md): the same service as files, compiled and deployed with the CLI.
-- [How Orion works](../concepts/how-orion-works.md): the three primitives and one request's journey through them.
-- [Install and run Orion](./install.md): the binary on your own machine, without Docker.
-- [Is Orion right for you?](./decide/is-orion-right-for-you.md): the neighbouring tools, and the cases where Orion is the wrong choice.
+- [Build your first service](./first-service.md) — Walk through request envelopes, execution traces, and rolling back deployments.
+- [Build a Postgres-backed orders API](./postgres-orders-api.md) — Connect a workflow to PostgreSQL, validate inputs, and run offline regression tests with connector stubs.
+- [Architecture and request lifecycle](../concepts/architecture.md) — Understand how Orion routes requests, runs ingress guards, and swaps deployments at runtime.
+- [When to use Orion](./when-to-use-orion.md) — See where Orion fits best and how it compares to API gateways, Temporal, and rule engines.

@@ -1,84 +1,84 @@
-# Orion documentation style guide
+# Orion Documentation Style Guide
 
-The system this book follows is
-[`DOCUMENTATION_STANDARD.md`](./DOCUMENTATION_STANDARD.md): the content model,
-the page templates, the voice rules, the callout vocabulary and the quality
-gates. The decisions it leaves to each set — the navigation axis, the tab
-order, the freshness stamps, the recorded deviations — are in
-[`CONTRIBUTING-DOCS.md`](./CONTRIBUTING-DOCS.md).
+This guide defines the terminology, spelling, and formatting conventions used across Orion documentation. It complements [`DOCUMENTATION_STANDARD.md`](./DOCUMENTATION_STANDARD.md) and [`CONTRIBUTING-DOCS.md`](./CONTRIBUTING-DOCS.md), and serves as the source for our Vale rules in `styles/`.
 
-This page holds what is left: the words Orion uses for its own things. It is
-the vocabulary §6.4 asks to be held constant across the site, and it is the
-source for `styles/config/vocabularies/Orion/accept.txt`.
+---
 
-## Product nouns
+## 1. Spelling
 
-Capitalised, always, because they name this product's concepts:
+Use **Standard American English** throughout prose and headings:
 
-**Orion**, **Orion Console**, **Plasmatic**.
+<!-- vale off -->
+- **behavior**, **color**, **favor**, **honor** (not *behaviour*, *colour*, *favour*, *honour*)
+- **license**, **defense** (not *licence*, *defence*)
+- **catalog**, **dialog** (not *catalogue*, *dialogue*)
+- **normalize**, **serialize**, **initialize**, **authorize**, **organize**, **analyze** (not *-ise*)
+- **canceled**, **labeled**, **modeled**, **signaled** (not *cancelled*, *labelled*, *modelled*, *signalled*)
+- **artifact**, **center** (not *artefact*, *centre*)
 
-Lowercase, always, because they are ordinary words for a thing the reader
-declares in JSON:
+### Wire-name exception
+Always preserve the exact wire spelling inside code spans and configuration blocks:
+- In `orion-ext`, the TOML configuration section is spelled `[extensions.licence]`. Write `"the license section (`[extensions.licence]`)"`—using American English in prose and the exact key in code font.
+<!-- vale on -->
+- In the Kafka example, if a topic is named `orders.cancelled`, keep the exact topic name in code font.
 
-**channel**, **workflow**, **connector**, **plugin**, **model**, **package**,
-**task**, **task group**, **step**, **trace**, **occurrence**.
+---
 
-Write "a channel", not "a Channel". The entity is the JSON document; the word
-is the word.
+## 2. Product Nouns and Capitalization
 
-## Preferred terms
+### Capitalized proper nouns
+Capitalize product and company names:
+- **Orion**, **Orion Ext**, **Orion Console**, **Plasmatic**
+- **Orion Community**, **Orion Standard**, **Orion Enterprise**
 
-| Use | Not | Why |
-|---|---|---|
-| definition | config, spec | A definition is the JSON a reader uploads. `manifest` means a deployment's member list, or a plugin's `plugin.toml`; say which. |
-| deploy | activate, publish, promote | A deployment commits a manifest as the head; nothing is activated. An apply deploys; a rollback deploys an earlier manifest again. |
-| dry run (noun), dry-run (the flag) | test run | `--dry-run` and `?dry_run=true` are the wire spellings. |
-| the admin API | the management API, the control plane API | `/api/v2/admin/` is the path. |
-| the data plane | the runtime API, the invocation API | The pairing is control plane / data plane. |
-| quarantine | disable, park, deactivate | A quarantined channel is deployed and refused at every ingress. Nothing was deactivated. |
-| ingress | entry point, inbound | One word for the ways work reaches the engine: a request, a cron occurrence, a queued trace, a `channel_call`. |
-| task function | function, action, operator | `operator` is a JSONLogic operator and nothing else. |
-| the engine | the runtime, the core | `the runtime` is the whole product; `the engine` is dataflow-rs inside it. |
-| Orion answers `409` | Orion throws a 409, returns a 409 error | The product answers a status. Status codes are in code font. |
+### Lowercase domain nouns
+Keep Orion's declarative building blocks lowercase in prose:
+- **channel**, **workflow**, **connector**, **connection**, **plugin**, **provider**, **package**, **deployment**, **manifest**, **task**, **task group**, **step**, **trace**, **occurrence**
+- Write *"a channel"* and *"the workflow"*, never *"a Channel"* or *"the Workflow"*.
 
-## Spelling
+---
 
-Oxford: `-our` endings with `-ize` verbs.
+## 3. Preferred Developer Terminology
 
-**behaviour**, **colour**, **favour** — and **normalize**, **serialization**,
-**recognize**, **organize**, **analyze**.
+Use clear, standard engineering terms:
 
-American technical spellings that are the wire name stay as the wire name:
-`normalize` in a function's field table is the field, not a choice.
+| Use | Avoid | Why |
+| :--- | :--- | :--- |
+| **definition** or **definition file** | spec | A definition is the workflow, channel, or plugin JSON document. Use `manifest` specifically for a deployment's member list or a plugin's `plugin.toml`. |
+| **definition set** | config directory | A directory of workflow, channel, connector, and shared fragment files compiled by `orion-cli compile`. |
+| **deploy** / **apply a deployment** | activate, publish, promote | In Orion v2, `orion-cli deployments apply` commits a deployment manifest as the new head revision. |
+| **returns `409`** or **responds with `409`** | answers `409`, throws a 409 | "Returns" and "responds with" are natural developer English. Format HTTP status codes in code font (`200`, `400`, `409`, `503`). |
+| **dry run** (noun), **`dry-run`** (CLI command/flag) | test run | Matches `orion-cli dry-run` and `--dry-run`. |
+| **Admin API** (`/api/v2/admin/*`) | management API | Matches the route prefix and configuration sections (`[admin_auth]`). |
+| **Data API** or **data plane** (`/api/v2/data/*`) | runtime API, invocation API | Pairs cleanly with Admin API / control plane. |
+| **quarantined** | disabled, parked, deactivated | When a channel or workflow fails to load on a node, Orion marks it as quarantined and rejects requests to it while keeping the rest of the deployment running. |
+| **ingress** | entry point | Collective term for how work enters Orion: sync HTTP, `/async` HTTP, `cron` schedules, in-process `channel_call`, or extension drivers (`kafka`, `graphql`, `sse`). |
+| **task function** (or **function**) | action, operator | Reserve **operator** for JSONLogic operators (`==`, `cat`, `var`, `map`). |
+| **the engine** | the core | Refers specifically to the workflow execution engine (`dataflow-rs`) inside Orion. |
 
-## Wire names in prose
+---
 
-An identifier that a reader could type is in code font, exactly as the product
-spells it: `workflow_id`, `channel_call`, `ORION_SERVER__PORT`,
-`POST /api/v2/admin/deployments`, `503`.
+## 4. Code Spans and Wire Identifiers
 
-Prose may say "the workflow ID" when talking about the idea, and must say
-`workflow_id` when naming the field. The two never appear in one sentence in
-two spellings.
+Format anything a developer types, configures, or reads from terminal output in inline code (`backticks`):
+- **File names and paths**: `workflow.json`, `orion.toml`, `dist/deployment`
+- **JSON/TOML keys and values**: `workflow_id`, `on_rejection: "halt"`, `[extensions.redis]`, `channel_type: "sync"`
+- **Task functions and JSONLogic operators**: `parse_json`, `data_query`, `connector_call`, `var`, `cat`
+- **CLI commands and flags**: `orion-cli compile`, `--capabilities`, `--require-edition`
+- **Environment variables and secret locators**: `ORION_SERVER__PORT`, `env://ORDERS_DB_URL`, `vault://secret/data/db#url`
+- **HTTP routes, methods, and status codes**: `POST /api/v2/admin/deployments`, `GET /readyz`, `409`, `TIER_NOT_ENABLED`
 
-## The running example
+When referring to the concept in prose, use plain words (*"the workflow ID"*); when naming the JSON field, use code font (`` `workflow_id` ``).
 
-One service, everywhere in the book: an orders service, in three tested forms.
+---
 
-| Form | Workflow | Channel | Route | Ships as |
-|---|---|---|---|---|
-| Quickstart | `quickstart-orders` | `orders` | `POST /orders` | `examples/quickstart.sh` |
-| Packaged | `high-value-order` | `high-value-orders` | `POST /high-value-orders` | `examples/packages/high-value-order/` |
-| Database-backed | `record-order` on connector `orders-db` | `record-order` | `POST /record-order` | `examples/packages/postgres-orders/` |
+## 5. Running Examples
 
-The rule in the example logic is "flag an order whose `total` exceeds
-`10000`". A page needing a second service uses `notification-routing` on
-`POST /notifications`. A page needing a third has too many.
+Use consistent, recognizable examples across the documentation so readers don't have to re-learn a new domain on every page:
 
-## Related
-
-- [Documentation standard](./DOCUMENTATION_STANDARD.md): the content model, the
-  templates, the voice rules and the quality gates.
-- [Contributing to the Orion book](./CONTRIBUTING-DOCS.md): the navigation
-  axis, the tab order, the freshness stamps and the recorded deviations.
-- [Glossary](./src/reference/glossary.md): every product noun, defined once.
+| Scenario | Workflow ID | Channel ID / Route | Repository Path |
+| :--- | :--- | :--- | :--- |
+| **Quickstart / High-value orders** | `quickstart-orders` / `high-value-order` | `orders` (`POST /orders`) / `high-value-orders` (`POST /high-value-orders`) | `examples/packages/high-value-order/` |
+| **First service tutorial** | `order-summary` | `order-summary` (`POST /order-summary`) | `examples/packages/order-summary/` |
+| **Database-backed API** | `record-order` (using connector `orders-db`) | `record-order` (`POST /record-order`) | `examples/packages/postgres-orders/` |
+| **Secondary example** | `notification-routing` | `notifications` (`POST /notifications`) | `examples/packages/notification-routing/` |

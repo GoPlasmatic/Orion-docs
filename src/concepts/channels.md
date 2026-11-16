@@ -1,10 +1,10 @@
-<!-- description: A channel is an Orion service endpoint: where traffic arrives, which workflow runs, and the contract — auth, rate limits, validation — a caller must satisfy. -->
+<!-- description: Learn how Orion channels expose workflows over REST, HTTP, Cron, Kafka, GraphQL, and SSE, and enforce authentication, rate limits, and validation. -->
 <!-- type: concept -->
 <!-- last_verified: 2026-11-16 -->
 
-# Channels
+# Channels and ingress
 
-A *channel* is a service endpoint. It says where traffic arrives, which workflow runs when it does, and what contract the caller has to satisfy on the way in.
+A **channel** is a service endpoint in Orion. It defines how work arrives (the protocol and route or schedule), which workflow executes when work arrives, and which ingress guards the caller must pass before the workflow runs.
 
 ```orion-diagram
 {
@@ -25,77 +25,67 @@ A *channel* is a service endpoint. It says where traffic arrives, which workflow
 }
 ```
 
-A channel names exactly one workflow. That is what makes the channel the unit of selection when a service is deployed: picking the endpoints picks the service.
+---
 
-## Protocols
+## Channel protocols
 
-A channel's `protocol` names the channel driver that serves it. The driver declares
-the required fields, HTTP routing support and accepted `channel_type`. The node
-refuses a protocol with no driver at upload. A Community node supports three protocols:
+A channel's `protocol` field selects the channel driver that serves it.
 
-- **`rest`**: a method and a path pattern, such as `POST /orders` or `GET /orders/{id}`. Path parameters reach the workflow as request metadata.
-- **`http`**: routes identically to `rest`. Both also stay reachable by channel name at `/api/v2/data/{name}`.
-- **`cron`**: the channel declares a schedule and a fixed payload. Orion materializes a durable occurrence per scheduled instant and runs it. It is the one protocol with no caller, so it registers no route and is not reachable by name.
+### Core protocols (all editions)
+- **`rest`**: Binds an HTTP method list and a path pattern under `/api/v2/data`, such as `POST /orders` or `GET /orders/{id}`. Path parameters (`{id}`) are extracted into `metadata`. Every REST channel is also addressable by name at `/api/v2/data/{channel_name}`.
+- **`http`**: Routes identically to `rest` and can be called by route pattern or channel name.
+- **`cron`**: Runs a workflow on a six-field cron schedule (`transport_config.schedule`) with a fixed JSON payload. Cron channels have no external caller and do not register an HTTP route; instead, Orion's scheduler writes a durable **occurrence** row for each scheduled instant and executes it.
 
-<span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span> Orion Standard and Enterprise add three protocols. [`kafka`](../reference/channel-config/kafka.md) consumes topics through a required connection, [`graphql`](../reference/channel-config/graphql.md) resolves each root field of a document, and [`sse`](../reference/channel-config/sse.md) streams one event per interval.
+### Standard & Enterprise protocols <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>
+Available in Orion Standard and Enterprise (`orion-ext`):
+- **[`kafka`](../enterprise/kafka.md)**: Consumes messages from one or more Kafka topics using a consumer group (`transport_config`), with at-least-once offset settlement and dead-letter topic routing.
+- **[`graphql`](../enterprise/graphql.md)**: Exposes a GraphQL endpoint (`GET` and `POST`) where each root field of the query or mutation runs a workflow execution, protected by depth, complexity, and alias limits.
+- **[`sse`](../enterprise/sse.md)**: Serves a `GET` endpoint with `text/event-stream`, executing the workflow on each timer tick (`interval_ms`) and streaming events with keepalives and `Last-Event-ID` resumption.
 
-Community does not register a `source` protocol. A source channel remains refused
-until a working source provider and its runner ship together; lease and checkpoint
-support does not start an ingress.
+If you upload a channel with an unknown or unenabled `protocol` (such as `kafka` on a Community node), Orion rejects the upload with `400 VALIDATION_ERROR`.
 
-A node registers a protocol when a driver for it implements the required execution
-lifecycle. The driver serves it as a driver ingress or as an HTTP hook.
+---
 
-`kafka` is a driver ingress: records arrive over the connection, and the channel
-applies rate limit, validation, deduplication and backpressure. `graphql` and `sse`
-are HTTP hooks: each driver answers its own route, and authentication, origin and
-rate limit run once per request. [Guards by ingress](../reference/channel-config/guards-by-ingress.md)
-has the full matrix.
+## Synchronous vs. asynchronous execution
 
-## Sync or async
+The `channel_type` field controls whether the caller waits for the workflow to finish:
 
-`channel_type` decides whether the caller waits. A `cron` or `kafka` channel is always `async`, because nothing waits on a schedule and a broker delivery has no caller.
+| Mode | Response | How the Result Is Read | Timeout Bound |
+| :--- | :--- | :--- | :--- |
+| **`sync`** | Returns `200 OK` (or a custom shaped status) with the final `data` context | Directly from the HTTP response body | Channel `timeout_ms` |
+| **`async`** | Returns `202 Accepted` immediately with `trace_id` and `trace_token` | Poll `GET /api/v2/admin/traces/{id}` | Clamped to `trace_queue.processing_timeout_ms` |
 
-| | `sync` | `async` |
-|---|---|---|
-| **Answer** | The finished result | `202` with a trace id |
-| **Result read from** | The response body | `GET /api/v2/admin/traces/{id}` |
-| **Bounded by** | The channel's `timeout_ms` | The trace queue's capacity |
+- Any synchronous `rest` or `http` channel also automatically exposes an asynchronous submission path by appending `/async` to its route (`/api/v2/data/orders/async`) or passing `--async-mode` in `orion-cli send`.
+- `cron` and `kafka` channels are always `"channel_type": "async"` because there is no interactive HTTP caller waiting on a response.
 
-Use sync for request/response APIs: validation, enrichment, lookups, and transformations the caller needs an answer from. Use async for work the caller should not block on, where a trace id and a later poll are enough. Any REST or HTTP channel serves its async form at `/{route_pattern}/async`, so the same endpoint can be called either way.
+---
 
-## Scheduled work
+## Ingress guards
 
-A cron channel binds a schedule to a workflow the way a REST channel binds a route to one. That makes a schedule an *ingress*, not part of the workflow. One workflow can carry an hourly trigger and a nightly one with different payloads. Changing when something runs does not create a new revision of what it does.
+A channel declares its security and traffic controls inside its `config` object. Orion enforces these guards before the workflow starts:
 
-Occurrences are durable rows, so a schedule survives a restart, a rolling deploy and a node failure. A run that was missed is visible rather than absent. A `forbid` concurrency policy makes a schedule non-overlapping across the whole cluster. See [Cron transport](../reference/channel-config/cron.md).
+| Guard | Purpose | Rejection Status |
+| :--- | :--- | :--- |
+| **`rate_limit`** | Token-bucket rate limiter (per client IP by default, or custom `key_logic`). | `429 Too Many Requests` |
+| **`auth`** | Verifies API keys (`api_key`), webhook HMAC signatures (`hmac`), or bearer tokens (`jwt`). | `401 Unauthorized` |
+| **`oauth2_login`** | Browser OAuth2/OIDC authorization-code flow with PKCE and session cookies. | `302` redirect / `401` |
+| **`principal_rate_limit`** | Secondary token-bucket quota keyed on verified JWT claims after authentication. | `429 Too Many Requests` |
+| **`origin_allow_list`** | Server-side check of the `Origin` header on HTTP requests. | `403 Forbidden` |
+| **`validation_logic`** | JSONLogic predicate over `data` and `metadata` to reject bad payloads early. | `400 Bad Request` |
+| **`deduplication`** | Rejects replayed idempotency keys within `window_secs`. | `409 Conflict` |
+| **`cache`** | Caches synchronous responses keyed by route, query, and payload fields (`ttl_secs`). | Serves cached `200 OK` |
+| **`backpressure`** | Caps concurrent in-flight executions per node (`max_concurrent_per_node`). | `503 Service Unavailable` |
 
-## Traffic controls
+Guards apply consistently across all ingresses that support them (sync HTTP, `/async` HTTP, `channel_call`, `cron`, and extension transports). If a channel's guard configuration fails to load at runtime (for example, an `auth` block referencing an unset `env://` secret), Orion **quarantines** the channel—refusing all traffic to it rather than serving it unauthenticated.
 
-A channel declares its own guards in a `config` object, and Orion enforces them before any workflow logic runs. Each one is a few lines of JSON, not code you write:
+---
 
-- **`auth`**: API-key, HMAC-signature or JWT verification for HTTP callers. Failures are a uniform `401`.
-- **`rate_limit`**: a token bucket that answers `429` when it empties. The default bucket is per caller, not per channel.
-- **`validation_logic`**: a JSONLogic predicate over the request. A falsy result rejects it with `400` before the workflow starts.
-- **`deduplication`**: an idempotency key that turns a replay into `409` instead of a second execution.
-- **`cache`**: a response cache for repeated identical requests.
-- **`backpressure`**: a concurrency cap per node. Excess is shed with `503` rather than queued indefinitely.
-- **`timeout_ms`**, **`origin_allow_list`**, **`response`** and **`tracing`**: the deadline, a server-side `Origin` check, response shaping, and a per-channel trace-storage override.
+## Composing services with `channel_call`
 
-Every key, default and interaction is specified in [Channel configuration](../reference/channel-config/index.md). Two properties are worth carrying in your head from here:
-
-- **Guards apply per ingress, not per protocol.** An `/async` submission, an in-process `channel_call` and a cron occurrence get the same contract as a synchronous request, minus only what their transport cannot carry. A cron occurrence has no caller to authenticate.
-- **A config that no longer parses quarantines the channel.** It is refused at every ingress rather than served with a guard silently missing. See [Troubleshooting](../operate/maintain/troubleshooting.md).
-
-## Channels calling channels
-
-A workflow can invoke another channel's workflow with the `channel_call` function. The call runs in-process, with no network hop and no serialization round-trip, while the called channel keeps its own workflow, guards and revision. Cycles are detected and refused.
-
-That is what lets one deployment hold a set of small services, each with its own contract, instead of one large workflow.
+A workflow can invoke another channel in the same deployment using the [`channel_call`](../reference/functions.md) task function. The call executes in-process with no network hop or HTTP serialization overhead, while still enforcing the target channel's applicable guards (`rate_limit`, `validation_logic`, `backpressure`) and timeout. Orion detects and rejects circular call chains at compile and deploy time.
 
 ## Next steps
 
-- [Channel configuration](../reference/channel-config/index.md): every guard key, with defaults and per-ingress semantics.
-- [Workflows](./workflows.md): what the channel hands the request to.
-- [Data API](../reference/data-api.md): how a request path resolves to a channel, and the shape of what comes back.
-- [Configure a channel](../guides/author/channels.md): the guards as a walkthrough, one at a time.
+- [Configure channels and guards](../guides/channels.md) — Step-by-step walkthrough for setting up routes, authentication, rate limits, deduplication, and response shaping.
+- [Schedule jobs with cron](../guides/scheduled-jobs.md) — Configure scheduled channels, misfire policies, and singleton concurrency.
+- [Channel configuration schema](../reference/channels.md) — Complete field tables and the guard-by-ingress matrix.

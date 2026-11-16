@@ -1,9 +1,6 @@
 # Everything this repository generates or fetches.
 
-# Python: structure_lint.py runs from lint.sh, and CPython writes a bytecode
-# cache beside it the first time. The rest are the caches a contributor's own
-# tooling leaves behind — none of them are needed to run the linter, which
-# wants nothing but a Python 3 on PATH.
+# Python bytecode and virtual environments.
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,26 +13,21 @@ venv/
 # mdBook rendered output (build.sh).
 book/
 
-# The pinned mdBook binary build.sh fetches when one is not on PATH
-# (Cloudflare's build image); dev machines and CI never populate this.
+# Pinned mdBook binary fetched by build.sh when mdbook is not on PATH.
 .bin/
 
 # Wrangler local dev state (`npx wrangler dev`).
 .wrangler/
 
-# UI recording scripts (`recordings/ui`).
+# Node dependencies.
 node_modules/
-recordings/ui/node_modules/
 
-# Vale's third-party style packages, fetched by `vale sync` (.vale.ini names
-# them under Packages). Not vendored: the Google style guide has its own
-# release cadence, and a committed copy would be one more thing to maintain.
-# styles/Orion/ and styles/config/ are ours and are committed.
+# Vale third-party style packages fetched by `vale sync`.
 styles/Google/
 
-# The drift guards' build output (drift/, or CARGO_TARGET_DIR=./target).
+# Cargo build output for the drift guards.
 target/
+drift/target/
 
-# Local-only [patch] onto an Orion working tree (CONTRIBUTING-DOCS.md,
-# "Local setup"). Never committed: CI builds against the pinned tag.
+# Local-only [patch] onto an Orion working tree (CONTRIBUTING-DOCS.md).
 .cargo/config.toml

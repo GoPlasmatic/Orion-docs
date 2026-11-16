@@ -23,7 +23,10 @@ use std::collections::{BTreeMap, BTreeSet};
 fn metrics_rs() -> std::path::PathBuf {
     crate::support::crate_src("orion-common").join("metrics.rs")
 }
-const OBSERVABILITY_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/metrics.md");
+const OBSERVABILITY_MD: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../src/reference/errors-and-metrics.md"
+);
 
 /// `name -> label keys`, parsed from the `counter!` / `gauge!` / `histogram!`
 /// invocations in `src/metrics.rs`.

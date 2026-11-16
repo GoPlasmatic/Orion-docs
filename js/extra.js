@@ -1365,37 +1365,6 @@
   }
 })();
 
-// ── asciinema player embeds ──
-// Renders any <div class="asciinema-player" data-cast="casts/foo.cast"></div>.
-// The data-cast path is book-root-relative; we prepend mdBook's path_to_root so
-// it resolves from any page depth.
-(function () {
-  function mount() {
-    if (typeof AsciinemaPlayer === "undefined") return;
-    var prefix = typeof path_to_root !== "undefined" ? path_to_root : "";
-    var nodes = document.querySelectorAll(".asciinema-player[data-cast]");
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      if (el.dataset.mounted) continue;
-      el.dataset.mounted = "1";
-      AsciinemaPlayer.create(prefix + el.dataset.cast, el, {
-        fit: "width",
-        terminalFontSize: "13px",
-        theme: "asciinema",
-        controls: true,
-        poster: "npt:0:02",
-        idleTimeLimit: 2,
-      });
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mount);
-  } else {
-    mount();
-  }
-})();
-
 // ── Tabs ──
 // Equivalent alternatives — an install method, a curl form beside a CLI form —
 // are tabs on one URL rather than repeated sections (DOCUMENTATION_STANDARD.md

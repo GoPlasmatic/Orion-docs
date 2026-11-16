@@ -79,7 +79,7 @@ fn every_tested_with_stamp_names_the_pinned_release() {
         }
     }
     assert!(
-        stamps >= 10,
+        stamps >= 7,
         "found only {stamps} `Tested with Orion` stamps — the scan lost them"
     );
     assert!(

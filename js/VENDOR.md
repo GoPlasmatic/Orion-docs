@@ -1,27 +1,8 @@
-# Vendored third-party assets — js, css and src/webfonts
+# Vendored third-party assets — src/webfonts
 
-Minified upstream builds committed so the mdBook site is fully self-hosted
+Minified upstream font builds committed so the mdBook site is fully self-hosted
 (no CDN at page-load time). `deny.toml` covers only the Rust dependency tree,
 so this file is the license/provenance record for these assets.
-
-| File | Package | Version | License | Upstream |
-|------|---------|---------|---------|----------|
-| `js/asciinema-player.min.js` | asciinema-player | 3.17.0 | Apache-2.0 | <https://github.com/asciinema/asciinema-player> |
-| `css/asciinema-player.css` | asciinema-player (same release as the JS) | 3.17.0 | Apache-2.0 | <https://github.com/asciinema/asciinema-player> |
-
-Take both files from `dist/bundle/` in the npm tarball — that build is
-self-contained. The same directory also ships `asciinema-player-ui.js` and
-`asciinema-player-worker.js`; those are for module consumers and are **not**
-needed here, which is what keeps this a two-file drop-in.
-
-The version is not embedded in the minified build, so it cannot be read back
-out of the file. It was recovered for 3.8.0 (the previous vendored release) by
-byte-comparing against the published tarballs; keep this table current instead
-of relying on that.
-
-When updating: replace both files together (they ship as a pair), write the
-version into this table, and re-check that the two cast embeds in
-`src/getting-started/first-service.md` still mount.
 
 ## Webfonts
 
@@ -41,8 +22,6 @@ redistribution — are in [`src/webfonts/OFL.txt`](../src/webfonts/OFL.txt)
 beside the font files, and summarised in the repository's root `NOTICE`.
 
 These were fetched from the Google Fonts CSS2 API, which serves the woff2
-subsets above. They replaced a runtime `@import url(fonts.googleapis.com/…)`
-that had sat at the top of `plasmatic.css` — a third-party dependency on every
-page load, and one that serialised the font request behind the stylesheet
-parse. When updating, re-request the same families and weight ranges, keep the
-`latin` + `latin-ext` subsets only, and preserve each block's `unicode-range`.
+subsets above. When updating, re-request the same families and weight ranges,
+keep the `latin` + `latin-ext` subsets only, and preserve each block's
+`unicode-range`.

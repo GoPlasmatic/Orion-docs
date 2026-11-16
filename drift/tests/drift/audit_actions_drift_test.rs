@@ -45,7 +45,7 @@ const SRC_CRATES: &[&str] = &[
 ];
 const AUDIT_LOGS_MD: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../src/operate/run/audit-logs.md"
+    "/../src/operate/traces-and-audit.md"
 );
 
 /// The helpers that write an audit row, each with the index of its action

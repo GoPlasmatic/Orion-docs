@@ -1,10 +1,10 @@
-<!-- description: A workflow is an ordered pipeline of tasks in JSON, versioned like source code and executed directly by the engine — no build step and no binary. -->
+<!-- description: Understand how Orion workflows execute: ordered tasks, the shared JSON data context, JSONLogic conditions, task groups, loops, and error handling. -->
 <!-- type: concept -->
 <!-- last_verified: 2026-11-16 -->
 
-# Workflows
+# Workflows and data context
 
-A *workflow* is an ordered pipeline of tasks: the business logic a channel runs. It is a JSON document, versioned like source code, and it never becomes a binary. The engine executes it directly.
+A **workflow** is an ordered pipeline of tasks that implements a service's business logic. Written as a JSON document and tracked in source control, a workflow is compiled directly into Orion's in-memory execution engine (`dataflow-rs`) without generating or compiling application binaries.
 
 ```orion-diagram
 {
@@ -12,20 +12,25 @@ A *workflow* is an ordered pipeline of tasks: the business logic a channel runs.
   "groups": [ { "id": "wf", "label": "order-processing" } ],
   "nodes": [
     { "id": "p", "label": "parse_json", "sublabel": "payload → data.order", "type": "service", "group": "wf" },
-    { "id": "v", "label": "validation", "sublabel": "required fields", "type": "service", "group": "wf" },
+    { "id": "v", "label": "validation", "sublabel": "check required fields", "type": "service", "group": "wf" },
     { "id": "e", "label": "http_call", "sublabel": "enrich from CRM", "type": "service", "group": "wf" },
-    { "id": "m", "label": "map", "sublabel": "compute risk", "type": "service", "group": "wf" },
+    { "id": "m", "label": "map", "sublabel": "compute risk tier", "type": "service", "group": "wf" },
     { "id": "out", "label": "response", "type": "channel" }
   ],
   "edges": [
-    { "from": "p", "to": "v" }, { "from": "v", "to": "e" }, { "from": "e", "to": "m" }, { "from": "m", "to": "out" }
+    { "from": "p", "to": "v" },
+    { "from": "v", "to": "e" },
+    { "from": "e", "to": "m" },
+    { "from": "m", "to": "out" }
   ]
 }
 ```
 
-## Tasks
+---
 
-A task has an `id`, a `name`, and one `function` with its `input`. Functions are built in: parsing, mapping, validating, filtering, logging, and the connector-backed ones that call databases, HTTP APIs and caches. You pick and configure them; you do not write them.
+## Tasks and built-in functions
+
+Each step in a workflow's `tasks` array declares an `id`, a human-readable `name`, an optional JSONLogic `condition`, and a `function` block with its `input`:
 
 ```json
 {
@@ -34,54 +39,74 @@ A task has an `id`, a `name`, and one `function` with its `input`. Functions are
   "condition": { ">": [{ "var": "data.order.total" }, 10000] },
   "function": {
     "name": "map",
-    "input": { "mappings": [{ "path": "data.order.flagged", "logic": true }] }
+    "input": {
+      "mappings": [
+        { "path": "data.order.flagged", "logic": true }
+      ]
+    }
   }
 }
 ```
 
-Every function's exact `input` is in [Task functions](../reference/functions/index.md). Connector-backed inputs are schema-validated when you save the workflow, so an invalid field answers `400` with its field path before the workflow reaches production.
+Orion provides 27 built-in task functions across six categories:
+- **Data & Transformation**: `parse_json`, `parse_xml`, `map`, `filter`, `validation`, `log`, `publish_json`, `publish_xml`
+- **Database & Portable Dialect**: `data_query`, `data_write`, `db_read`, `db_write`
+- **HTTP & External Providers**: `http_call`, `connector_call`
+- **Caching**: `cache_read`, `cache_write`, `cache_delete`, `cache_incr`, `cache_invalidate`
+- **Security & Cryptography**: `crypto`, `jwt_sign`, `jwt_verify`
+- **Service Composition**: `channel_call`
 
-An element of `tasks` carrying its own `tasks` key is a *task group*: one condition guarding a contiguous run of tasks, evaluated once on entry. Any step, task or group, may set `terminal: true` to end the workflow once it has run. That is how a workflow answers early without every later task restating the negation of the branch above it. See [Group tasks and stop early](../guides/author/workflows.md#group-tasks-and-stop-early).
+You can also register custom pure JSON-to-JSON functions using sandboxed [WebAssembly plugins](../guides/plugins.md). Every function's input schema is validated when you run `orion-cli lint` or upload the definition to the server. See [Task functions](../reference/functions.md) for the complete catalog.
 
-## The data context
+---
 
-Tasks do not pass values to each other. They share one JSON document, the *data context*, and each task reads and writes paths in it:
+## The shared data context
 
-- **`data`**: the working document. For a sync channel, the final `data` object is the response body.
-- **`metadata`**: stamped by the ingress: channel name, method, headers, route parameters.
-- **`temp_data`**: scratch space that never reaches the response.
+Tasks do not pass arguments directly to one another. Instead, every task reads from and writes to a single per-request JSON document called the **data context**, which has three top-level namespaces:
 
-`data` starts as a copy of the request payload, so a condition can read a field the caller sent as `data.<field>` straight away. The payload itself stays outside the context, unchanged, and a `parse_json` task with `source: "payload"` places it under one key when a workflow wants it there. Because `data` starts from the payload, a sync response carries the caller's fields beside what the tasks wrote. A request no workflow matches is answered with its own input.
+| Namespace | Purpose | Returned to Caller? |
+| :--- | :--- | :--- |
+| **`data`** | The working document. Starts as a copy of the incoming request payload (`{"data": ...}`). Tasks write their outputs here (for example, `data.order` or `data.customer`). | **Yes** — on synchronous channels, the final `data` object is the default HTTP response body. |
+| **`metadata`** | Request context populated by the ingress: channel name, HTTP method, headers, cookies, path parameters, verified JWT claims, or Kafka/cron trigger fields. | **No** |
+| **`temp_data`** | Scratch space for intermediate calculations, temporary scores, or internal tokens that tasks need during execution but should not expose to the caller. | **No** |
 
-## Conditions
+Because `data` starts as a copy of the request payload, expressions can read incoming fields immediately as `data.<field>`. Placing a `parse_json` task at the start of a workflow (`"source": "payload", "target": "order"`) copies the raw payload under `data.order` so downstream tasks have a dedicated namespace.
 
-Conditions are [JSONLogic](../reference/expressions.md) expressions, compiled once when the engine builds. They appear at two levels, and the distinction matters:
+---
 
-- A **workflow-level `condition`** decides whether this workflow matches the request at all.
-- A **task-level `condition`** decides whether that task runs, inside a workflow that already matched.
+## Conditions, task groups, and early exits
 
-Branching inside a pipeline is the second one. Choosing between two pipelines is the first.
+Conditions are [JSONLogic](../reference/expressions.md) expressions that are compiled once when the runtime generation is built.
 
-## How a channel picks a revision
+### Workflow-level vs. task-level conditions
+- **Workflow `condition`**: Evaluated first to decide whether the workflow should run at all for the incoming request. Most workflows set `"condition": true`.
+- **Task `condition`**: Evaluated before that specific task runs. If it evaluates to falsy, Orion skips the task and moves to the next step.
 
-A channel requires exactly one workflow. Orion decides which revision of it runs the same way on every node:
+### Task groups and `terminal: true`
+An entry in `tasks` that contains its own nested `tasks` array is a **task group**. Its `condition` is evaluated once upon entry—if false, the entire group is skipped.
 
-1. **Only deployed revisions are considered.** A node runs what its committed [deployment](./deployments.md) head names. Nothing else is visible to traffic.
-2. **One revision usually takes every request.** A deployment built by `compile` carries one revision of each workflow. It runs whenever its workflow-level `condition` is truthy.
-3. **A rollout splits revisions.** <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span> On Orion Standard and Enterprise a manifest can carry two revisions of one workflow, and the channel member's `rollouts` give each a share of 100 buckets. The bucket is a stable hash of the request, so a caller lands consistently instead of flickering between revisions. A Community node serves one revision per channel and refuses a split with `TIER_NOT_ENABLED`.
+Setting `"terminal": true` on any task or task group stops the workflow immediately after that step finishes executing. Combining a task group with `terminal: true` gives you a clean guard-clause pattern (for example, returning a `404` response and stopping early when a database lookup returns `null`).
 
-## Versioned, not edited
+---
 
-A deployed workflow is immutable. Changing one means testing a new definition and deploying it as a new revision. Rolling back commits an earlier deployment's manifest again, so the content is exactly what it was when it last served. [Rollback](../reference/admin-api/deployments.md#rollback) covers the call. What matters here is that "edit the running logic" is not an operation Orion offers, on purpose.
+## How a channel selects a workflow revision
 
-## Errors
+1. **Immutable deployments**: A channel only runs workflow revisions included in the server's active [deployment](./deployments.md).
+2. **Single revision (default)**: When compiled from a directory with `orion-cli compile`, a channel requires one specific revision of its workflow.
+3. **Canary traffic splitting** <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>: On Orion Standard and Enterprise, a deployment manifest can attach a `rollouts` array to a channel member to split traffic across two or more revisions of the same workflow across 100 hash buckets (`[0, 100)`). Orion hashes the caller identity so repeat requests from the same caller land on the same revision. See [Canary rollouts and traffic splitting](../enterprise/traffic-splitting.md).
 
-By default the pipeline halts on the first task that errors, meaning a handler error or a `5xx`. The error reaches the caller in the response envelope. Set `"on_failure": "continue"` on a task to record its error and keep going instead. A task that records a `4xx`, as a failing [`validation`](../reference/functions/validation.md) rule does, halts nothing on its own. It is recorded and the pipeline proceeds, unless the task carries [`"on_rejection": "halt"`](../reference/workflows.md#halting-on-a-rejection). On an async channel, a task failure routes the trace to the dead-letter queue for retry.
+---
+
+## Error handling (`on_failure` vs. `on_rejection`)
+
+Orion distinguishes between two kinds of task problems:
+
+1. **Execution failures (`5xx` / handler errors)**: By default, if a connector call or function fails, the workflow halts immediately and returns an error envelope (or routes an async run to the dead-letter queue). Setting `"on_failure": "continue"` on a task records the error in the `errors` array and continues executing subsequent tasks.
+2. **Validation rejections (`4xx` rule failures)**: The [`validation`](../reference/functions.md) function evaluates business rules against the payload and appends any failures to `errors[]`. By default, `validation` **does not halt** the pipeline so multiple validation tasks can collect all errors at once. To stop the workflow immediately when a validation rule fails, set **`"on_rejection": "halt"`** on the validation task (`orion-cli lint` warns with `engine.unguarded_validation` if you omit it before a side-effecting task).
 
 ## Next steps
 
-- [Workflow definition](../reference/workflows.md): every field, the data context in full, and the matching and rollout semantics.
-- [Task functions](../reference/functions/index.md): what each function does and the exact `input` it takes.
-- [Expression language](../reference/expressions.md): the JSONLogic operator catalogue, and the silent-failure edges to avoid.
-- [Author a workflow](../guides/author/workflows.md): the how-to layer, from a first task to groups and loops.
-- [Test and deploy a service](../get-started/tutorials/test-and-promote.md): run a workflow offline before it sees traffic.
+- [Author workflows](../guides/workflows.md) — Practical patterns for mapping data, branching, task groups, loops, and shared fragments.
+- [Workflow schema and formatting](../reference/workflows.md) — Complete JSON field reference for workflows, tasks, and groups.
+- [Task functions](../reference/functions.md) — Input and output contracts for all 27 built-in functions.
+- [Expression language (JSONLogic)](../reference/expressions.md) — Operator catalog and evaluation rules.

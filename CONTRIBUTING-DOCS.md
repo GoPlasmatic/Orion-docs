@@ -1,269 +1,197 @@
-# Contributing to the Orion book
+# Contributing to Orion Documentation
 
-The system this book follows is [`DOCUMENTATION_STANDARD.md`](./DOCUMENTATION_STANDARD.md).
-Read it once; it is the rulebook. This page holds the decisions the standard
-tells each set to make for itself, and the deviations this set has recorded.
+This repository holds the documentation for Orion Community (`orion-server`), Orion Standard and Enterprise (`orion-ext`), and the Orion CLI (`orion-cli`).
 
-Section numbers below refer to the standard.
+Before editing or adding pages, read:
+- [`DOCUMENTATION_STANDARD.md`](./DOCUMENTATION_STANDARD.md) for our writing principles, content types, and structure rules.
+- [`STYLE_GUIDE.md`](./STYLE_GUIDE.md) for American English spelling, terminology, and formatting conventions.
 
-## The navigation axis (§3.1)
+---
 
-**Type-first.** Orion is one product, so the top level is the content model:
+## 1. Site Architecture (The 7-Part Spine)
 
-| Part | Promise |
-|---|---|
-| Get started | See it work, then learn how to think about it. |
-| Concepts | Understand what each part is and why it behaves as it does. |
-| Guides | Complete one task at a time. |
-| Operate | Run it in production: deploy, configure, secure, observe, upgrade, recover. |
-| Reference | Look up the exact contract. |
-| Releases | What changed, what breaks, how to move. |
+The documentation is organized around the developer journey in seven top-level parts:
 
-A promise never changes. A page that fits no promise is in the wrong part.
+| Part | Purpose | Target Audience |
+| :--- | :--- | :--- |
+| **Get started** | Run Orion locally, install the CLI and server, build your first services, and evaluate where Orion fits. | Developers evaluating or onboarding to Orion |
+| **Core concepts** | Understand the mental model: request lifecycle, workflows, channels, connectors, deployments, and editions. | All developers and architects |
+| **Build services** | Task-focused guides for writing workflows, configuring channels/guards, connecting databases/APIs, scheduling cron jobs, testing offline, CI/CD, WebAssembly plugins, and AI authoring. | Application developers |
+| **Standard & Enterprise** | Dedicated guides and references for `orion-ext`: Kafka, GraphQL, and SSE channels, the 7 enterprise providers, canary traffic splitting, Redis clustering, and provider packages. | Teams running Orion Standard or Enterprise |
+| **Operate in production** | Production checklist, Docker/Kubernetes/HA deployment, security hardening, monitoring, traces/DLQ/audit logs, resilience, backups, upgrades, and troubleshooting. | Platform engineers and operators |
+| **Reference** | Complete technical contracts: workflow/channel/connector schemas, task functions, JSONLogic operators, clippy rules, CLI commands, REST API, server configuration, error codes, and metrics. | Developers and operators looking up exact contracts |
+| **Releases** | Versioning policy, Orion 2.0 migration guide, and 1.x release history. | Teams upgrading Orion |
 
-Persona is never a section. An operator reads Operate guides and the
-configuration reference; an AI author reads the *Author with AI* group inside
-Guides. Neither gets a tree of its own.
+### Target Consolidated Page Map (`src/SUMMARY.md`)
 
-## Page types (§2.1)
-
-Every page declares its type on line 2:
+To keep information cohesive and easy to scan (`Cmd+F`), related topics are consolidated into comprehensive pages rather than split across hundreds of micro-files:
 
 ```markdown
-<!-- description: One sentence, 110-160 characters, unique across the book. -->
-<!-- type: concept -->
-<!-- last_verified: 2026-09-14 -->
+# Summary
+
+[Orion documentation](./introduction.md)
+
+# Get started
+
+- [Quickstart](./get-started/quickstart.md)
+- [Install and run Orion](./get-started/install.md)
+- [Build your first service](./get-started/first-service.md)
+- [Build a Postgres-backed orders API](./get-started/postgres-orders-api.md)
+- [Run the example packages](./get-started/examples.md)
+- [When to use Orion](./get-started/when-to-use-orion.md)
+
+# Core concepts
+
+- [Architecture and request lifecycle](./concepts/architecture.md)
+- [Workflows and data context](./concepts/workflows.md)
+- [Channels and ingress](./concepts/channels.md)
+- [Connectors and secrets](./concepts/connectors.md)
+- [Deployments and revisions](./concepts/deployments.md)
+- [Editions and capabilities](./concepts/editions.md)
+- [Glossary](./concepts/glossary.md)
+
+# Build services
+
+- [Author workflows](./guides/workflows.md)
+- [Configure channels and guards](./guides/channels.md)
+- [Connect databases, APIs, and caches](./guides/connectors.md)
+- [Schedule jobs with cron](./guides/scheduled-jobs.md)
+- [Test and lint offline](./guides/testing.md)
+- [CI/CD and deployment workflows](./guides/ci-cd.md)
+- [Extend with WebAssembly plugins](./guides/plugins.md)
+- [Build with AI assistants](./guides/ai-authoring.md)
+
+# Standard & Enterprise
+
+- [Overview and setup](./enterprise/overview.md)
+- [Kafka channels and producer](./enterprise/kafka.md)
+- [GraphQL APIs](./enterprise/graphql.md)
+- [Server-Sent Events (SSE)](./enterprise/sse.md)
+- [Enterprise connector providers](./enterprise/providers.md)
+- [Canary rollouts and traffic splitting](./enterprise/traffic-splitting.md)
+- [Multi-node clustering and HA](./enterprise/clustering.md)
+- [Custom provider packages](./enterprise/provider-packages.md)
+
+# Operate in production
+
+- [Production checklist](./operate/production-checklist.md)
+- [Deploy with Docker and Kubernetes](./operate/deploy.md)
+- [Security and access control](./operate/security.md)
+- [Monitoring, metrics, and alerts](./operate/monitoring.md)
+- [Execution traces, DLQ, and audit logs](./operate/traces-and-audit.md)
+- [Timeouts, retries, and circuit breakers](./operate/resilience.md)
+- [Backups, upgrades, and troubleshooting](./operate/maintenance.md)
+
+# Reference
+
+- [Workflow schema and formatting](./reference/workflows.md)
+- [Channel configuration schema](./reference/channels.md)
+- [Connector schemas and portable data dialect](./reference/connectors.md)
+- [Task functions](./reference/functions.md)
+- [Expression language (JSONLogic)](./reference/expressions.md)
+- [Static analysis rules (clippy)](./reference/clippy.md)
+- [CLI reference](./reference/cli.md)
+- [Admin and Data REST API](./reference/api.md)
+- [Server configuration and environment variables](./reference/configuration.md)
+- [Error codes and metrics](./reference/errors-and-metrics.md)
+
+# Releases
+
+- [Versioning and support policy](./releases/versioning-policy.md)
+- [Upgrade to Orion 2.0](./releases/upgrade-to-2.0.md)
+- [Orion 1.x release history](./releases/history-1.x.md)
 ```
 
-Valid types: `quickstart`, `tutorial`, `concept`, `guide`, `reference`,
-`troubleshooting`, `hub`, `release-note`, `migration`, `glossary`.
+Whenever a file path is consolidated or moved, add a redirect in `book.toml` under `[output.html.redirect]` so existing links continue to resolve.
 
-The type decides the template (§5), the voice register (§6) and where the page
-lives (§3). `lint.sh` asserts that the template's sections are present and
-in order.
+---
 
-## Freshness stamps (§10.2)
+## 2. Page Conventions
 
-Two stamps, two meanings, and no third:
-
-- `<!-- last_verified: YYYY-MM-DD -->` — a person ran this page and it worked.
-  Authored pages carry this.
-- `<!-- generated_from: 1.8.0 on YYYY-MM-DD -->` — this page was produced from
-  a source at that version. Generated reference carries this.
-
-An index's stamp is the newest of its children and never older than any of
-them. `lint.sh` flags a stamp older than the last minor release.
-
-## Titles (§3.6)
-
-The H1, the sidebar label, the browser title, the breadcrumb and the
-`llms.txt` entry are one string, in sentence case. Product nouns keep their
-capitals: Orion, Kafka, PostgreSQL, Docker, Kubernetes, JSONLogic.
-
-When the sidebar must be shorter, the shortening is mechanical: drop a leading
-`How to`, keep the rest. Nothing else is dropped, so a reader arriving from
-search can match the two.
-
-No two pages share a title. `lint.sh` check 16 refuses it.
-
-## Callouts (§8)
-
-Four labels, and only four:
+### 2.1 Front-Matter Comments
+Every page in `src/` (except `SUMMARY.md`) must begin with three HTML comment lines:
 
 ```markdown
-> **Note.** A fact the reader needs now that does not fit the flow.
-> **Tip.** A shortcut or a better way, optional.
-> **Warning.** Data loss, security exposure, or an irreversible action.
-> **Deprecated.** What replaces it, and when.
+<!-- description: Concise 110-160 character description of the page, unique across the book. -->
+<!-- type: guide -->
+<!-- last_verified: 2026-11-16 -->
 ```
 
-At most three per page, never two adjacent, never carrying a required step, a
-prerequisite, or the only statement of a limit. A warning appears *before* the
-step it warns about.
+- **Valid types**: `quickstart`, `tutorial`, `concept`, `guide`, `reference`, `troubleshooting`, `hub`, `release-note`, `migration`, `glossary`.
+- **Freshness stamp**: Use `<!-- last_verified: YYYY-MM-DD -->` for authored pages, or `<!-- generated_from: <version> on YYYY-MM-DD -->` for generated pages.
+- **Executable tutorials**: Pages that walk through live commands state `Tested with Orion <version>.` in their prerequisites section, matching the pinned Orion tag in `drift/Cargo.toml`.
 
-Edition, stability and version gates are not callouts. They are a badge beside
-the heading, plus a prose sentence in the page's first paragraph so the fact
-survives copying and machine reading (§8.4).
-
-## Edition marking (§8.4)
-
-The book covers every edition. Community is the unmarked default: a page that
-does not say otherwise describes what a Community node serves. A feature that
-Standard and Enterprise serve and Community does not carries one badge:
-
-```html
-<span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>
-```
-
-Rules:
-
-- **`Standard+` means Orion Standard and Enterprise.** The two editions are one
-  artifact and serve the same features. Never write `Enterprise` for a
-  Standard+ feature.
-- **Every gated page says so in its first body sentence**, in prose: "Available
-  in Orion Standard and Enterprise only." A refusal code belongs there when the
-  feature has one (`TIER_NOT_ENABLED`, the `NO_CLUSTER_STORE` boot failure).
-- **Every reference table row for a gated field or operation carries the same
-  badge**, in the description or a dedicated Edition column.
-- **No badge on an H1, a sidebar label or a callout.** The page title stays the
-  same in every edition; the gate is a property of what the page describes.
-- **Do not introduce an `Enterprise` badge.** Standard and Enterprise are one
-  artifact, so every non-Community feature is `Standard+`. The only
-  enterprise-specific mechanism is a package described in prose, not a badge.
-- The capability matrix on [Editions](./src/reference/editions.md) is the
-  single list. A page links it instead of restating the full matrix.
-
-## Code samples (§7)
-
-- One running example across the whole book: an orders service. The
-  quickstart's form is workflow `quickstart-orders` on channel `orders` at
-  `POST /orders`; the packaged form is `high-value-order`; the database form
-  is `postgres-orders` (`record-order` on connector `orders-db`). All three
-  ship under the Orion repository's
-  [`examples/packages/`](https://github.com/GoPlasmatic/Orion/tree/main/examples/packages),
-  so every sample is a tested file.
-- Secrets are placeholders: `<YOUR_ADMIN_KEY>` in prose samples,
-  `$ORION_ADMIN_KEY` in shell. Never a real key, and never a key in a
-  definition file.
-- Reserved-for-documentation values only: `example.com`, `user@example.com`,
-  `203.0.113.0/24`.
-- Commands carry no `$` prompt. Command and output are never in one block; the
-  output block is labelled as output.
-- One sentence before each block, ending in a colon, saying what it does. It
-  never repeats the code.
-- A sample that cannot be executed anywhere says so in that sentence.
-
-## Tab order (§7.4)
-
-Where a task has equivalent surfaces, they are tabs on one URL in this order,
-site-wide, with identical prose in every tab:
-
-**curl → CLI → Console**
-
-The admin API is the canonical surface; the CLI and the Console wrap it. A
-variant that needs different prose is a different page, not a tab.
-
-The markup is plain HTML, so the Markdown twin carries every variant in order:
+### 2.2 Code Tabs Order (`CLI` → `curl`)
+When showing equivalent operations across interfaces, put **`CLI` first** and **`curl` second** (followed by `Console` if applicable):
 
 ```html
 <div class="tabs">
-<section data-tab="curl">
-
-…
-
-</section>
 <section data-tab="CLI">
 
-…
+```bash
+orion-cli send orders -d '{"order_id": "ORD-1001", "total": 25000}'
+```
+
+</section>
+<section data-tab="curl">
+
+```bash
+curl -sS -X POST http://localhost:8080/api/v2/data/orders \
+  -H "Content-Type: application/json" \
+  -d '{"data": {"order_id": "ORD-1001", "total": 25000}}'
+```
 
 </section>
 </div>
 ```
 
-## Diagrams (§9.2)
+### 2.3 Edition Marking (`Standard+`)
+Orion Community is the unmarked default. Features available only in Orion Standard and Enterprise (`orion-ext`) are documented in the **Standard & Enterprise** section and marked in shared reference tables or headings with:
 
-One notation: the `orion-diagram` fenced block. The same shape means the same
-kind of thing on every page — `channel`, `service`, `store`, `external` — and
-the same arrow means the same relation. Every diagram has alt text stating what
-it shows and is named in the prose, never referred to by position.
+```html
+<span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>
+```
 
-No emoji and no character standing in for an icon; `lint.sh` check 14
-refuses both. Marks are SVG.
+- Always state the edition requirement in plain prose in the opening paragraph of a gated section or page (for example, *"Available in Orion Standard and Enterprise (`orion-ext`)."*).
+- Do not place `<span class="edition-badge ...">` inside an `# H1` heading.
+- Never use an `Enterprise` badge—Orion Standard and Enterprise ship as the same `orion-ext` binary and share the same feature set.
 
-## Recorded deviations
+---
 
-The standard is followed except here. Each entry says what, and why.
+## 3. Building and Verifying Locally
 
-| Rule | Deviation | Reason |
-|---|---|---|
-| §3.3, "a group that outgrows fifteen is two groups" | `Task functions` (27), `orion-server` commands (13), `orion-cli` commands (20), `clippy` rules (18) and `connector` types (7) each stay one group | Each is one machine surface with one catalogue. Splitting the sidebar across it would hide the completeness the hub's routing table exists to show. The hub groups them in prose. |
-| §10.4, feedback widget with structured reasons | No feedback control on a page. Feedback goes to [Discussions](https://github.com/GoPlasmatic/Orion/discussions) and [Issues](https://github.com/GoPlasmatic/Orion/issues), linked from the landing page | A widget with reasons needs a tracker endpoint to own, and this project has none. A per-page control that only opened a pre-filled issue collected no more than the two trackers already do, and put a call to action under every page of a reference section. |
-| §5.0.7 and §10.3, "Edit this page" in the page furniture | No edit link, in the footer or the header. The repository is linked from the header icon and from the landing page | The book is one estate with drift tests and three linters behind it; a page is not safely editable in isolation from the product facts it restates, and the header icon already routes a contributor to the source. |
-| §5.0.7, "Copy as Markdown" in the page furniture | No link to the twin. Every page is still served as Markdown at its own URL with `.html` swapped for `.md`, and `llms.txt` and `llms-full.txt` still ship | §10.5 is about the twin being *served*, which it is. The visible link addressed a reader who, if they want the source, already knows the URL rule. |
-| §5.7, "a hub has no other content" | `reference/functions/index.md` carries the full summary and retry-safety tables | §5.7.3 permits a routing table on a hub for a section with many pages, and this is that table. The per-function contract is on the function's own page. |
-| §7.5, samples included by anchor from a tested repository | Samples are copied, not included by anchor. The few whole files the book `{{#include}}`s are vendored under `examples/` here, byte-equal to the pinned Orion release (`included_examples_test`) | The book and the product are separate repositories, and mdBook can only include files in this one. Orion's own CI executes its `examples/` and `tests/e2e/`, and the drift guards under `drift/` assert every fact the book restates from the code. |
-
-## Before you open a pull request
+Run these checks before opening a pull request:
 
 ```bash
-bash build.sh                               # mdBook; create-missing = false catches a dangling entry
-bash lint.sh                                # integrity and structure
-vale sync && vale src                       # prose
-cargo test --manifest-path drift/Cargo.toml # the drift guards, against the pinned Orion
+bash build.sh                               # Build the mdBook, llms-full.txt, and SEO metadata
+bash lint.sh                                # Check links, anchors, JSON examples, descriptions, and page structure
+vale sync && vale src                       # Lint prose for buzzwords, ease words, and spelling consistency
+cargo test --manifest-path drift/Cargo.toml # Verify docs against the pinned Orion codebase
 ```
 
-A page that restates a fact from the product — a setting, a route, a default,
-an error code, a metric name, a function's input table — must be asserted
-against the product by a drift guard in `drift/tests/drift/`
-([`drift/README.md`](./drift/README.md)). The code is authoritative; the build
-fails when a page disagrees.
+### Updating the Pinned Orion Release (`drift/Cargo.toml`)
 
-## Local setup
+The Rust drift guards in `drift/tests/drift/` verify that our documentation matches the Orion codebase (`AppConfig` defaults, `ORION_*` environment variables, built-in task functions, JSONLogic operators, `clippy` rules, OpenAPI routes, error codes, audit log actions, and Prometheus metrics).
 
-The book builds with nothing but mdBook (`build.sh` fetches the pinned
-version when it is not on `PATH`), Node (for `seo.mjs`), Python 3 (for
-`lint.sh`) and Vale. The drift guards also need Rust 1.100 and the system
-packages Orion builds with (`cmake`, `pkg-config`).
+To update the book for a new Orion release:
+1. Update the `tag` on all `orion-*` dependencies in `drift/Cargo.toml` and run `cargo update --manifest-path drift/Cargo.toml`.
+2. Regenerate the OpenAPI snapshot:
+   `cargo run --manifest-path drift/Cargo.toml --bin dump-openapi > openapi.json`
+3. Sync any updated example files from `../Orion/examples/` into `examples/`.
+4. Update the `Tested with Orion <version>.` lines in the tutorials.
 
-### Which Orion the guards check against
-
-The drift guards are a cargo package that depends on Orion's library crates
-as a **git dependency pinned to a release tag**:
+To test against an unreleased local checkout of `../Orion`, add a gitignored `.cargo/config.toml` patch at the root of this repository:
 
 ```toml
-orion-common = { git = "https://github.com/GoPlasmatic/Orion", tag = "vX.Y.Z" }
-```
-
-Every `orion-*` dependency in `drift/Cargo.toml` names the same tag, and that
-tag is the release the book documents: the tutorials' `Tested with Orion
-<version>.` lines must name it (`lint.sh` check 18 and
-`release_stamps_drift_test`). The guards that read Orion's *source* — where
-audit rows are written, the metric macros, the example files the book
-includes — find it through `cargo metadata`, so they read exactly the
-checkout cargo compiled.
-
-To move the book to a new Orion release:
-
-1. The tag must exist on GitHub first. Cargo fetches the git source even when
-   a local `[patch]` replaces it, so a clean clone of this repository cannot
-   build the guards until the tag it names has been pushed.
-2. Change the `tag` on every `orion-*` dependency in `drift/Cargo.toml`, then
-   refresh the lock file so it records the tag's commit:
-   `cargo update --manifest-path drift/Cargo.toml -p orion-common`.
-3. Regenerate the OpenAPI snapshot:
-   `cargo run --manifest-path drift/Cargo.toml --bin dump-openapi > openapi.json`.
-4. Re-copy any file under `examples/` that the release changed, from Orion's
-   `examples/` (`included_examples_test` names the stale ones).
-5. Re-stamp the tutorials' `Tested with Orion <version>.` lines.
-
-### Checking against an unreleased Orion working tree
-
-To check documentation for a change that is not tagged yet, point cargo at a
-local Orion checkout with a `[patch]` in `.cargo/config.toml` at this
-repository's root. The file is gitignored and must never be committed; CI
-always builds against the tag.
-
-```toml
-# .cargo/config.toml (local only)
 [patch."https://github.com/GoPlasmatic/Orion"]
-orion-api = { path = "/path/to/Orion/crates/orion-api" }
-orion-authoring = { path = "/path/to/Orion/crates/orion-authoring" }
-orion-common = { path = "/path/to/Orion/crates/orion-common" }
-orion-definitions = { path = "/path/to/Orion/crates/orion-definitions" }
-orion-engine = { path = "/path/to/Orion/crates/orion-engine" }
-orion-extension-api = { path = "/path/to/Orion/crates/orion-extension-api" }
-orion-http = { path = "/path/to/Orion/crates/orion-http" }
-orion-plugin-host = { path = "/path/to/Orion/crates/orion-plugin-host" }
-orion-runtime = { path = "/path/to/Orion/crates/orion-runtime" }
-orion-storage = { path = "/path/to/Orion/crates/orion-storage" }
+orion-api = { path = "../Orion/crates/orion-api" }
+orion-authoring = { path = "../Orion/crates/orion-authoring" }
+orion-common = { path = "../Orion/crates/orion-common" }
+orion-definitions = { path = "../Orion/crates/orion-definitions" }
+orion-engine = { path = "../Orion/crates/orion-engine" }
+orion-extension-api = { path = "../Orion/crates/orion-extension-api" }
+orion-http = { path = "../Orion/crates/orion-http" }
+orion-plugin-host = { path = "../Orion/crates/orion-plugin-host" }
+orion-runtime = { path = "../Orion/crates/orion-runtime" }
+orion-storage = { path = "../Orion/crates/orion-storage" }
 ```
-
-Two things to know while a patch is in place:
-
-- Cargo still resolves the git source named in `drift/Cargo.toml` before it
-  applies the patch, so the tag must be reachable — either pushed, or present
-  in a local mirror you redirect the URL to with git's `url.<base>.insteadOf`
-  (and `CARGO_NET_GIT_FETCH_WITH_CLI=true`, so cargo fetches through git).
-- Cargo rewrites the `orion-*` entries of `drift/Cargo.lock` to the patched
-  paths. Do not commit that change — `git checkout drift/Cargo.lock` first —
-  or CI's `--locked` build refuses the lock file.

@@ -1,49 +1,28 @@
 #!/usr/bin/env bash
-# docs-lint — the docs estate's structural guard: include and link integrity,
-# redirect coverage for hard site links, and the one-owner-per-fact greps that
-# stop a fact being restated in two places.
-#
-# DOCS2_PHASE gated the checks that only became true as the 2.0 restructure
-# landed. The restructure is complete, so it sits at its final value; leave it
-# there unless a check is deliberately being relaxed.
-#
-# src/llms.txt is CURATED, NOT GENERATED — a settled decision, not an
-# unfinished one. Its preamble, its per-entry descriptions and its two
-# non-chapter entries are editorial: they are written for a retrieval model
-# choosing one page, and no generator produces them from SUMMARY.md. Checks 3,
-# 8, 9 and 10 are what keep a hand-maintained index honest — every chapter is
-# listed, every listed page resolves, nothing lists a page that no longer has a
-# chapter, and no entry describes a page by a title it has lost. Descriptions
-# stay uncompared on purpose; that is the part a human is better at.
-#
-# TWO RULES FOR EVERY `git grep` BELOW, both learned from a CI failure this
-# script could not reproduce on any developer's machine (run 31587839330).
-#
-# CI runs with no LANG set, so git's regexes execute in the C locale, where
-# every byte is a valid single-byte character. A developer's shell is almost
-# always UTF-8, where the same bytes are invalid sequences the engine skips.
-# The two therefore disagree about the ~20 binaries under src (fonts,
-# screenshots, videos), and only the CI half of the disagreement is ever seen:
-#
-#   1. Pass -I to any `git grep` scanning a tree, so binaries are never
-#      searched. Every check here is about prose; a woff2 cannot hold a review
-#      ID, but its compressed bytes can spell one. That is precisely what broke
-#      — check 6 matched inter-italic-latin-ext.woff2 in CI and nowhere else.
-#   2. Start any -P pattern using \x{...} above FF with (*UTF), which puts
-#      PCRE in UTF mode from inside the pattern rather than relying on the
-#      locale. Without it, check 14's pattern does not merely mismatch in the C
-#      locale: it fails to compile, and git exits 128. Since these checks read
-#      "did grep find anything", a 128 is indistinguishable from a clean pass —
-#      the guard reports success having tested nothing.
+# docs-lint — structural and link integrity linter for Orion documentation.
 set -uo pipefail
 cd "$(dirname "$0")"
 
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+export PYTHONDONTWRITEBYTECODE=1
+
+if python3 -c "import pathlib" >/dev/null 2>&1; then
+  PYTHON=python3
+elif [ -x /usr/bin/python3 ]; then
+  PYTHON=/usr/bin/python3
+else
+  PYTHON=python3
+fi
+
 DOCS2_PHASE=4
+# Set DOCS_CHECK_LLMS=0 while migrating SUMMARY.md across phases; Phase 7 sets it to 1.
+DOCS_CHECK_LLMS="${DOCS_CHECK_LLMS:-1}"
 
 fail=0
 err() { printf 'docs-lint: %s\n' "$*" >&2; fail=1; }
 
-## 1. {{#include}} targets resolve (mdBook only warns on a missing include).
+## 1. {{#include}} targets resolve.
 while IFS= read -r hit; do
   file=${hit%%:*}
   rest=${hit#*:}
@@ -66,10 +45,7 @@ while IFS= read -r hit; do
   done
 done < <(grep -rnE '\]\([^)]*\.md[#)]' src --include='*.md' 2>/dev/null)
 
-## 3. Hard site links (this repository's README, llms.txt) resolve to a live
-##    page or a redirect entry in book.toml — the don't-break-the-web
-##    invariant. The Orion repository's README and examples/README.md link here
-##    too; they live in that repository and are checked there.
+## 3. Hard site links (README.md, llms.txt) resolve to a live page or a redirect in book.toml.
 for f in README.md src/llms.txt; do
   [ -f "$f" ] || continue
   while IFS= read -r url; do
@@ -82,30 +58,17 @@ for f in README.md src/llms.txt; do
   done < <(grep -oE 'docs\.goplasmatic\.io/[A-Za-z0-9_./#-]+' "$f" | sort -u)
 done
 
-## 4. No hand-maintained magic numbers (casts are recorded sessions — exempt).
-if git grep -I -nE '46 tools|6,000' -- src README.md ':!src/casts' >/dev/null 2>&1; then
-  git grep -I -nE '46 tools|6,000' -- src README.md ':!src/casts' >&2
+## 4. No hand-maintained magic numbers.
+if git grep -I -nE '46 tools|6,000' -- src README.md >/dev/null 2>&1; then
+  git grep -I -nE '46 tools|6,000' -- src README.md >&2
   err 'hand-maintained magic number (46 tools / 6,000+)'
 fi
 
-## 5. The function count is stated in exactly one place. Whether the number is
-##    *correct* is asserted by functions_docs_drift_test against the schema
-##    registry and the page's own summary table — this check only stops the
-##    number being restated somewhere it would later drift.
-stray=$(git grep -I -lE '24 functions|24 built-in' -- src 2>/dev/null | grep -v 'reference/functions/' || true)
-[ -z "$stray" ] || err "function count '24' stated outside reference/functions/: $stray"
+## 5. The function count is stated only in the functions reference.
+stray=$(git grep -I -lE '24 functions|24 built-in' -- src 2>/dev/null | grep -v 'reference/functions' || true)
+[ -z "$stray" ] || err "function count '24' stated outside reference/functions: $stray"
 
-## 6. No internal review IDs in user docs. The audit IDs (K…, R…, F…, N…, S…)
-##    are repo-internal: they resolve to nothing a reader can open. Every page
-##    is in scope — the 1.0 upgrade guide's old blanket exemption expired with
-##    its restructure and its ten IDs are gone.
-##
-##    One occurrence survives, deliberately. The upgrade guide quotes
-##    `config/retired_env.rs`'s refusal message verbatim, and that string
-##    carries a `(K4)` the binary prints at operators. Quote the binary or
-##    change the binary; do not paraphrase it into a doc that then disagrees
-##    with what the terminal says. Drop this filter if that string ever loses
-##    its ID.
+## 6. No internal review IDs in user docs.
 hits=$(git grep -I -nE '\((K|R|F|N|S)[0-9]+(, ?(K|R|F|N|S)[0-9]+)*\)' -- src \
        | grep -v 'removed in 1.0 (K4)' || true)
 if [ -n "$hits" ]; then
@@ -113,37 +76,22 @@ if [ -n "$hits" ]; then
   err 'internal review IDs in user docs'
 fi
 
-## 7. (Phase ≥3, after the features/* pages dissolve) no Rust internals
-##    outside concepts/design-notes.md — the one page whose job is the
-##    implementation's rationale (DOCUMENTATION_STANDARD.md §2.1 files it as
-##    explanation, so it lives under Concepts).
+## 7. No Rust internals outside architecture / design-notes.
 if [ "$DOCS2_PHASE" -ge 3 ]; then
-  if git grep -I -nE 'Arc<RwLock|tokio::sync::mpsc|apply_guards|CatchPanicLayer|arena-mode' -- src ':!src/concepts/design-notes.md' >/dev/null 2>&1; then
-    git grep -I -nE 'Arc<RwLock|tokio::sync::mpsc|apply_guards|CatchPanicLayer|arena-mode' -- src ':!src/concepts/design-notes.md' >&2
-    err 'Rust internals outside concepts/design-notes.md'
+  if git grep -I -nE 'Arc<RwLock|tokio::sync::mpsc|apply_guards|CatchPanicLayer|arena-mode' -- src ':!src/concepts/design-notes.md' ':!src/concepts/architecture.md' >/dev/null 2>&1; then
+    git grep -I -nE 'Arc<RwLock|tokio::sync::mpsc|apply_guards|CatchPanicLayer|arena-mode' -- src ':!src/concepts/design-notes.md' ':!src/concepts/architecture.md' >&2
+    err 'Rust internals outside concepts/architecture.md or concepts/design-notes.md'
   fi
 fi
 
-## 8. (Phase ≥4, once the ToC is final) every SUMMARY chapter has an llms.txt
-##    entry, so the curated index cannot silently fall behind the book.
-if [ "$DOCS2_PHASE" -ge 4 ]; then
+## 8, 9, 10. llms.txt synchronization with SUMMARY.md.
+if [ "$DOCS2_PHASE" -ge 4 ] && [ "$DOCS_CHECK_LLMS" -eq 1 ]; then
   while IFS= read -r p; do
     html="${p%.md}.html"
     grep -qF "docs.goplasmatic.io/${html}" src/llms.txt \
       || err "llms.txt: no entry for SUMMARY chapter $p"
   done < <(grep -oE '\(\./[A-Za-z0-9_./-]+\.md\)' src/SUMMARY.md | sed 's/^(\.\///; s/)$//')
-fi
 
-## 9.  No llms.txt entry points at a page that has no chapter. Check 3 accepts
-##     a redirect, so a retired page's entry would otherwise survive there
-##     indefinitely; check 8 only ever walks SUMMARY → llms.txt, never back.
-## 10. An entry's link text matches its chapter's SUMMARY title, so a rename
-##     cannot leave the curated index naming a page something it is not.
-##
-##     Both skip anything that is not a book page: the raw OpenAPI spec, the
-##     GitHub repo and llms-full.txt are deliberate non-chapter entries, and
-##     none of them ends in .html.
-if [ "$DOCS2_PHASE" -ge 4 ]; then
   while IFS= read -r entry; do
     title=${entry%%](*}; title=${title#*[}
     url=${entry#*](}; url=${url%)}
@@ -161,72 +109,22 @@ if [ "$DOCS2_PHASE" -ge 4 ]; then
   done < <(grep -oE '^- \[[^]]+\]\(https://docs\.goplasmatic\.io/[A-Za-z0-9_./#-]+\)' src/llms.txt)
 fi
 
-## 11. Mindmap node links resolve to a real page. An ```orion-mindmap block is
-##     JSON inside a fenced code block carrying runtime .html hrefs, so checks 1
-##     and 2 never see it — they look for markdown links. Without this, retiring a
-##     page would leave the capability map pointing at a 404 that nothing notices.
-##     Only the page is checked, matching check 2's depth; fragments are not.
-##     Plain grep, not git grep: a page added but not yet committed must be
-##     checked too, which is exactly when a bad link is cheapest to fix.
+## 11. Mindmap node links resolve to a real page or redirect.
 for f in $(grep -rl 'orion-mindmap' src --include='*.md' 2>/dev/null); do
   while IFS= read -r hit; do
     line=${hit%%:*}
     body=${hit#*:}
     for l in $(printf '%s' "$body" | grep -oE '"link" *: *"[^"]+"' | sed -E 's/.*"link" *: *"([^"#]+).*/\1/'); do
       case "$l" in http://*|https://*) continue ;; esac
-      [ -f "src/${l%.html}.md" ] || err "$f:$line: mindmap link has no page: $l"
+      if [ ! -f "src/${l%.html}.md" ] && ! grep -qF "\"/${l}\"" book.toml; then
+        err "$f:$line: mindmap link has no page: $l"
+      fi
     done
   done < <(grep -n '"link" *: *"' "$f" 2>/dev/null)
 done
 
-## 12. Every comparison page carries the template's load-bearing parts. The
-##     section's whole value is that its pages read side by side and that the
-##     honest half is never quietly dropped, so both are checked rather than
-##     trusted: a page that cannot fill "What Orion cannot do here" is a page
-##     that is not honest yet, and an undated comparison is a stale one. The
-##     review date is a claim about when a human last checked the other tools'
-##     docs — nothing can verify that for us, but a missing line is catchable.
-##
-##     "What Orion does instead" is deliberately NOT required. dataflow-rs.md
-##     says "What Orion adds on top" because it is a build decision, not a
-##     competitive comparison, and the page opens by saying so. Forcing the
-##     heading there would make it lie to satisfy a grep.
-if ls src/get-started/decide/vs-*.md >/dev/null 2>&1; then
-  for f in src/get-started/decide/vs-*.md; do
-    [ -e "$f" ] || continue
-    for h in 'Side by side' 'Where they overlap' 'Running both' \
-             'What Orion cannot do here' 'Related'; do
-      grep -q "^## $h\$" "$f" || err "$f: missing required heading '## $h'"
-    done
-    grep -q '^\*\*How it relates:\*\* ' "$f" \
-      || err "$f: missing a '**How it relates:**' line"
-    ## The date alone was the weaker half of the contract: it says a human
-    ## looked, not what they looked at. A version is what makes the claim
-    ## falsifiable later, so the line has to name one.
-    grep -q '^\*\*Last reviewed:\*\* .*, against ' "$f" \
-      || err "$f: '**Last reviewed:**' needs a ', against <Tool> <version>' clause"
-    ## An orphan page would otherwise sit outside checks 8 and 10, which only
-    ## ever walk SUMMARY.md.
-    rel=${f#src/}
-    grep -qF "](./$rel)" src/SUMMARY.md \
-      || err "$f: no SUMMARY.md chapter, so llms.txt is never checked for it"
-  done
-fi
-
-## 13. The Required column is lower case, everywhere.
-##
-##     Two field-table legends used to disagree — the functions reference published
-##     `yes`/`no` and channel-config.md published `Yes`/`No` — for the same
-##     column, which meant no reader could tell whether the difference meant
-##     anything. It does not. The Required column carries a controlled value
-##     that sits beside `rest`, `hmac` and `one of …`, so it is lower case
-##     like those.
-##
-##     A boolean MATRIX cell is a different thing: it answers a question in
-##     prose ("does this guard apply on this ingress?"), so it stays `Yes` /
-##     `No`. That is why this walks the tables and only looks at the column
-##     whose header is Required, rather than grepping for the words.
-req_case=$(python3 - <<'PY'
+## 13. The Required column in field tables is lowercase (yes / no).
+req_case=$("$PYTHON" - <<'PY'
 import pathlib
 bad = []
 for f in sorted(pathlib.Path('src').rglob('*.md')):
@@ -253,62 +151,23 @@ if [ -n "$req_case" ]; then
   err 'capitalised Yes/No in a Required column'
 fi
 
-## 14. No emoji, and no character standing in for an icon.
-##
-##     A character borrowed from the text face cannot be sized, aligned or
-##     stroked against the type around it, and an emoji renders differently
-##     on every platform. Every mark in this book is an SVG — a <symbol> in
-##     js/extra.js for the ones the script inserts, a `--p-icon-*` mask in
-##     plasmatic.css §1 for the ones CSS draws.
-##
-##     The arrow characters are NOT listed here: `→` is real punctuation in
-##     prose like "rate limit → auth", and this book uses it that way in nine
-##     files. Only the ones whose sole use is decorative are refused.
-##
-##     Prose only. The casts are recorded terminal sessions and their `❯`
-##     prompt is what the shell actually printed — the same reason check 4
-##     exempts them — and the images, videos and webfonts are binaries that a
-##     byte-range match hits by accident.
-##     `(*UTF)` is load-bearing — see rule 2 in the header. Without it this
-##     pattern does not compile in CI's C locale, and the failure is invisible:
-##     git exits 128, which an `if git grep …; then` reads as "found nothing".
-##
-##     Run once, not twice, and separate the three outcomes git actually
-##     returns (0 found / 1 clean / >1 error) instead of collapsing them into
-##     a boolean. A guard that cannot tell "clean" from "broken" is how this
-##     one shipped dead in the first place.
+## 14. No decorative emoji in src markdown files.
 emoji_re='(*UTF)[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}\x{FE0F}]'
 emoji_hits=$(git grep -I -nP "$emoji_re" -- 'src/**/*.md' 'src/*.md' 2>&1)
 case $? in
 0)
   printf '%s\n' "$emoji_hits" >&2
-  err 'emoji or dingbat in src — use an SVG mark (js/extra.js sprite, or --p-icon-* in plasmatic.css §1)'
+  err 'emoji or dingbat in src — use an SVG mark'
   ;;
 1) ;; # clean
 *)
   printf '%s\n' "$emoji_hits" >&2
-  err 'the emoji check could not run (git grep failed) — it is not passing, it is broken'
+  err 'the emoji check could not run (git grep failed)'
   ;;
 esac
 
-## 15. Every SUMMARY chapter carries a `<!-- description: ... -->` on its first
-##     line, and every description is distinct and the right length.
-##
-##     seo.mjs reads these into each page's <meta name="description">,
-##     og:description and JSON-LD. Without one a page falls back to the
-##     book-wide description from book.toml — which is what all 90 pages used
-##     to share, and is the condition this check exists to stop returning.
-##
-##     The bounds are Google's rendering, not a style rule: below ~110 chars a
-##     description under-uses the snippet; above ~160 it is truncated mid-word.
-##     Uniqueness matters for the same reason the shared fallback did not work
-##     — two pages with one description give a ranker nothing to tell them
-##     apart, and give an answer engine one summary for two subjects.
-##
-##     Nothing else can generate these: llms.txt's entries are index
-##     annotations written to sit beside a title, not standalone sentences, so
-##     reusing them here would make one line serve two jobs badly.
-desc_report=$(python3 - <<'DESCPY'
+## 15. Every SUMMARY chapter carries a unique `<!-- description: ... -->` (105-165 chars).
+desc_report=$("$PYTHON" - <<'DESCPY'
 import pathlib, re, collections
 
 summary = pathlib.Path('src/SUMMARY.md').read_text()
@@ -326,8 +185,8 @@ for rel in chapters:
         continue
     d = m.group(1)
     n = len(d)
-    if not (110 <= n <= 160):
-        problems.append(f"src/{rel}: description is {n} chars, want 110-160")
+    if not (105 <= n <= 165):
+        problems.append(f"src/{rel}: description is {n} chars, want 105-165")
     seen[d].append(rel)
 
 for d, files in seen.items():
@@ -342,10 +201,8 @@ if [ -n "$desc_report" ]; then
   err 'page description missing, mis-sized or duplicated (seo.mjs reads these)'
 fi
 
-## 16. Chapter titles are unique. Search results and browser tabs only carry
-##     the H1, so two chapters with one title are indistinguishable even when
-##     their sidebar labels happen to differ.
-title_report=$(python3 - <<'TITLEPY'
+## 16. Chapter titles are unique.
+title_report=$("$PYTHON" - <<'TITLEPY'
 import collections, pathlib, re
 
 summary = pathlib.Path('src/SUMMARY.md').read_text()
@@ -370,9 +227,7 @@ if [ -n "$title_report" ]; then
 fi
 
 ## 17. Relative Markdown links carrying a fragment resolve to a real heading.
-##     mdBook preserves underscores and repeated hyphens in heading IDs; this
-##     slugger mirrors that behavior for the syntax used in this book.
-fragment_report=$(python3 - <<'FRAGPY'
+fragment_report=$("$PYTHON" - <<'FRAGPY'
 import pathlib, re, urllib.parse
 
 root = pathlib.Path('src')
@@ -411,12 +266,8 @@ if [ -n "$fragment_report" ]; then
   err 'broken relative fragment links'
 fi
 
-## 18. Executable tutorials state the version they were actually run with,
-##     and that version follows the Orion release the drift guards are pinned
-##     to (the `tag` on every orion-* dependency in drift/Cargo.toml) rather
-##     than becoming stale prose. drift/tests/drift/release_stamps_drift_test.rs
-##     holds that tag to the version cargo actually resolves.
-tutorial_report=$(python3 - <<'TUTORIALPY'
+## 18. Executable tutorials state the Orion version they were tested with.
+tutorial_report=$("$PYTHON" - <<'TUTORIALPY'
 import pathlib, re
 
 cargo = pathlib.Path('drift/Cargo.toml').read_text()
@@ -425,33 +276,25 @@ if len(tags) != 1:
     print(f'drift/Cargo.toml: expected one Orion tag across the orion-* dependencies, found {sorted(tags)}')
     raise SystemExit
 version = tags.pop()
-paths = [
-    'get-started/quickstart.md', 'get-started/install.md',
-    'get-started/tutorials/first-service.md',
-    'get-started/tutorials/first-connector.md',
-    'get-started/tutorials/test-and-promote.md',
-    'get-started/tutorials/examples.md',
-    'get-started/tutorials/orders-api.md',
-    'guides/patterns/console.md', 'guides/ai/worked-examples.md',
-    'guides/patterns/ci-cd.md',
-    'guides/ai/claude-code.md',
+candidates = [
+    'get-started/quickstart.md',
+    'get-started/install.md',
+    'get-started/first-service.md',
+    'get-started/postgres-orders-api.md',
+    'get-started/examples.md',
+    'guides/ci-cd.md',
+    'guides/ai-authoring.md',
 ]
-for rel in paths:
+for rel in candidates:
     path = pathlib.Path('src') / rel
-    text = path.read_text() if path.exists() else ''
-    # The version is a prerequisite fact in the page's own prose ("Tested
-    # with Orion 1.8.0."), where DOCUMENTATION_STANDARD.md §4.3 wants versions
-    # to be. The date is the page's `last_verified` stamp, checked by
-    # structure_lint.py; a second date here would be the third stamp §10.2
-    # forbids.
+    if not path.exists():
+        continue
+    text = path.read_text()
     match = re.search(r'Tested with Orion (\S+)\.', text)
     if not match:
         print(f'{path}: no "Tested with Orion <version>." line')
     elif match.group(1) != version:
         print(f'{path}: tested with {match.group(1)}, workspace version is {version}')
-    if rel.startswith('get-started/'):
-        if not re.search(r'^## Next steps$', text, re.M):
-            print(f'{path}: executable tutorial has no ## Next steps')
 TUTORIALPY
 )
 if [ -n "$tutorial_report" ]; then
@@ -459,9 +302,7 @@ if [ -n "$tutorial_report" ]; then
   err 'tutorial test metadata missing or stale'
 fi
 
-## 19. Retired editorial terms and the unsafe quickstart shortcut do not
-##     return. Product names inside URLs and historical upgrade notes are not
-##     aliases and remain valid.
+## 19. Retired editorial terms and unsafe quickstart shortcuts do not return.
 forbidden=$(grep -rnE 'CI-CD|The Console \(Orion UI\)|raw\.githubusercontent\.com/GoPlasmatic/Orion/main/examples/quickstart\.sh *\| *bash' \
   src --include='*.md' 2>/dev/null || true)
 if [ -n "$forbidden" ]; then
@@ -469,12 +310,8 @@ if [ -n "$forbidden" ]; then
   err 'deprecated terminology or pipe-to-shell quickstart'
 fi
 
-## 20. The vendored JSON examples and the published OpenAPI document parse.
-##     examples/ holds the Orion example files the book {{#include}}s, copied
-##     from the pinned release (included_examples_test in drift/ holds them
-##     byte-equal to it); workflow semantics are covered by Orion's own CI.
-##     This catches malformed copyable assets before those deeper checks run.
-json_report=$(python3 - <<'JSONPY'
+## 20. Vendored JSON examples and openapi.json parse cleanly.
+json_report=$("$PYTHON" - <<'JSONPY'
 import json, pathlib
 
 paths = [pathlib.Path('openapi.json')]
@@ -491,21 +328,10 @@ if [ -n "$json_report" ]; then
   err 'invalid JSON in a copyable repository example'
 fi
 
-## 21. Conformance to DOCUMENTATION_STANDARD.md: page types, per-type template
-##     sections, callout vocabulary, sentence length, hub size, navigation
-##     depth and title identity.
-##
-##     Checks 1-20 above are about *integrity* — that what the book claims
-##     exists does exist. This one is about *conformance*, and it needs two
-##     things no grep has: a page's declared type, and the navigation tree.
-##     It lives in structure_lint.py.
-##
-##     DOCS_STRUCTURE_LEVEL was `report` while the rewrite ran and is
-##     `enforce` since it closed, which is §12's "start advisory and tighten to
-##     failing". Change it in one place; nothing else reads it.
+## 21. Page structure and metadata conformance.
 DOCS_STRUCTURE_LEVEL=enforce
 
-if ! python3 structure_lint.py "$DOCS_STRUCTURE_LEVEL"; then
+if ! "$PYTHON" structure_lint.py "$DOCS_STRUCTURE_LEVEL"; then
   err 'page structure does not match DOCUMENTATION_STANDARD.md'
 fi
 

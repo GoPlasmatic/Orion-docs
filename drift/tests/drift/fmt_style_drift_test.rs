@@ -13,9 +13,9 @@ use std::collections::BTreeSet;
 
 use orion_authoring::definitions::fmt::style::{self, STYLE};
 
-const FMT_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/fmt.md");
+const FMT_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/workflows.md");
 const WORKFLOWS_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/workflows.md");
-const FUNCTIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/functions");
+const FUNCTIONS_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/functions.md");
 
 fn table(keys: &[&str]) -> BTreeSet<String> {
     keys.iter().map(|k| k.to_string()).collect()
@@ -85,19 +85,13 @@ fn step_tables_match_the_workflow_reference() {
 fn documented_field_order_is_the_formatters() {
     let mut checked = 0;
     let mut mismatches = Vec::new();
-    let mut pages: Vec<_> = std::fs::read_dir(FUNCTIONS_DIR)
-        .expect("list reference/functions")
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|e| e == "md"))
-        .collect();
-    pages.sort();
-    for path in pages {
-        // The page is named after the function; the hub and the discovery
-        // page name no function and are skipped by `input_key_order`.
-        let name = path.file_stem().unwrap().to_string_lossy().to_string();
-        let name = name.as_str();
-        let section = std::fs::read_to_string(&path).unwrap();
-        // The page's *first* table: `data_write` follows its field table
+    let page = std::fs::read_to_string(FUNCTIONS_MD).expect("read src/reference/functions.md");
+    for chunk in page.split("\n### `").skip(1) {
+        let Some((name, section)) = chunk.split_once('`') else {
+            continue;
+        };
+        let section = section.split("\n## ").next().unwrap_or(section);
+        // The section's *first* table: `data_write` follows its field table
         // with one for the `write` envelope's own members.
         // A row may document several fields at once (`cc` / `bcc`); every
         // backticked name in its first cell counts, in order.

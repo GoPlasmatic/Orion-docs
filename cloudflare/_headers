@@ -23,7 +23,7 @@
 # a font file never changes under a name (a new face arrives as a new file),
 # so it earns the same treatment.
 #
-# Deliberately not listed: images/, videos/, casts/ and diagram-assets/ are
+# Deliberately not listed: images/ and diagram-assets/ are
 # unhashed and *can* be replaced in place, so they keep the revalidating
 # default.
 /css/*

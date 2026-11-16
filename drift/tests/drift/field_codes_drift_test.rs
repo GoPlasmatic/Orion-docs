@@ -8,7 +8,10 @@
 
 use std::collections::BTreeSet;
 
-const ERRORS_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/errors.md");
+const ERRORS_MD: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../src/reference/errors-and-metrics.md"
+);
 
 fn registered_codes() -> BTreeSet<String> {
     orion_api::error::field_codes::ALL

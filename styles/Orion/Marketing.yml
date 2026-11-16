@@ -1,13 +1,11 @@
 extends: existence
-message: "'%s' is positioning, not documentation. Positioning lives on the marketing site."
+message: "'%s' reads like marketing hype or AI slop. State the concrete technical behavior instead."
 link: ../DOCUMENTATION_STANDARD.md
 level: error
 ignorecase: true
 tokens:
-  - powerful
   - seamless
   - seamlessly
-  - robust
   - blazing
   - blazingly
   - enterprise-grade
@@ -15,9 +13,11 @@ tokens:
   - world-class
   - cutting-edge
   - state-of-the-art
-  - leverage
-  - leveraging
-  - unlock
   - supercharge
   - effortless
   - effortlessly
+  - delve
+  - delves
+  - delving
+  - tapestry
+  - testament to

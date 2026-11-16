@@ -163,7 +163,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UploadPackageRequest"
+                "$ref": "#/components/schemas/PackageFilesRequest"
               }
             }
           },
@@ -233,7 +233,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UploadPackageRequest"
+                "$ref": "#/components/schemas/PackageFilesRequest"
               }
             }
           },
@@ -847,7 +847,7 @@
           "Connections"
         ],
         "summary": "Create an immutable connection revision",
-        "description": "Refuses a raw secret in public_config and a malformed secret locator, then judges the configuration as the node will read it — public_config with each secret reference at its locator path, the references unresolved. Over a built-in driver it is typed and checked as the connector it serves (`http`, `db` or `cache`), exactly as `orion-cli compile` checks it; over an uploaded provider package it must satisfy the package's declared `configuration_schema`. Over a `workflow` provider package, `bindings` must bind each dependency alias the package declares to a stored connection over a built-in or rust provider (the one the dependency names, when it names one), and nothing else; a deployment member for the connection must then require each bound connection. A refusal names each problem by field in `details`. Then persists an immutable, content-addressed connection revision: the same revision with the same content answers it again, with different content it is a conflict.",
+        "description": "Refuses a raw secret in public_config and a malformed secret locator, then judges the configuration as the node will read it — public_config with each secret reference at its locator path, the references unresolved. Over a built-in driver it is typed and checked as the connector it serves (`http`, `db` or `cache`), exactly as `orion-cli compile` checks it; over an uploaded provider package it must satisfy the package's declared `configuration_schema`. Over a provider that declares dependencies (a `workflow` provider package, or a composed `rust` provider whose description declares them), `bindings` must bind each required dependency alias to a stored connection over a provider that declares no dependencies of its own (the one the dependency names, when it names one), and nothing else; a deployment member for the connection must then require each bound connection. A composed `rust` provider also sees the bindings in its own `validate_connection`. A refusal names each problem by field in `details`. Then persists an immutable, content-addressed connection revision: the same revision with the same content answers it again, with different content it is a conflict.",
         "operationId": "create_connection_revision",
         "parameters": [
           {
@@ -982,6 +982,16 @@
               }
             }
           },
+          "400": {
+            "description": "A malformed path parameter (`VALIDATION_ERROR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Missing or invalid admin API key. Only returned when `admin_auth.enabled` is true.",
             "content": {
@@ -1060,6 +1070,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConnectionProbeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A malformed path parameter (`VALIDATION_ERROR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2639,6 +2659,16 @@
               }
             }
           },
+          "400": {
+            "description": "A malformed path parameter (`VALIDATION_ERROR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Missing or invalid admin API key. Only returned when `admin_auth.enabled` is true.",
             "content": {
@@ -2717,6 +2747,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConvergenceStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A malformed path parameter or an unknown `target` (`VALIDATION_ERROR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2864,7 +2904,7 @@
           "Deployments"
         ],
         "summary": "Discover runtime capabilities and edition boundaries",
-        "description": "Returns the v2 contract revision this server speaks (`api_version` — a client that speaks another must stop), its edition (`community` or `enterprise`), registered channel drivers and provider backends (each built-in driver with the digest a connection revision names), the plugin Wasm world, the deployment head, and this node's reconciler status.",
+        "description": "Returns the v2 contract revision this server speaks (`api_version` — a client that speaks another must stop), its edition (`community`, `standard` or `enterprise`), registered channel drivers and provider backends (each built-in driver with the digest a connection revision names), the plugin Wasm world, the deployment head, and this node's reconciler status.",
         "operationId": "get_runtime_capabilities",
         "responses": {
           "200": {
@@ -3422,7 +3462,7 @@
           "Data"
         ],
         "summary": "Invoke a channel synchronously",
-        "description": "Invoke a channel's workflow synchronously.\n\nThis is a **templated** path, not a static one. Orion serves the whole data plane from a single catch-all route (`/api/v2/data/{*path}`) and resolves the target channel at request time, so no per-channel path exists in this document:\n\n* **Simple HTTP channels** — a single path segment matched against the channel `name`, e.g. `POST /api/v2/data/order-intake`.\n* **REST channels** — each active channel registers its own method and path pattern (`config.rest.routes`) at engine-reload time; those patterns may span several segments and declare their own path parameters, which arrive in the workflow as `metadata.params`, percent-decoded exactly once (`a%2Fb` becomes `a/b`). Static segments match byte-exact — the path is case-sensitive per RFC 3986. Any HTTP method is accepted — `GET`, `PUT`, `PATCH` and `DELETE` behave identically to the `POST` documented here, with the verb exposed as `metadata.http_method`. Query the admin channel API for the routes a given deployment actually serves.\n\nAppend `/async` to submit to the queue instead — see `POST /api/v2/data/{channel}/async`.\n\nAuthentication is per channel and off by default: `admin_auth` covers the admin plane only. A channel carrying an `auth` block in its config (`api_key` or `hmac`) authenticates every caller on this path and on `/async` alike; a channel without one is open to anyone who can reach the port. `validation_logic` and `origin_allow_list` complement it but are not authentication — `Origin` is client-supplied.",
+        "description": "Invoke a channel's workflow synchronously.\n\nThis is a **templated** path, not a static one. Orion serves the whole data plane from a single catch-all route (`/api/v2/data/{*path}`) and resolves the target channel at request time, so no per-channel path exists in this document:\n\n* **Simple HTTP channels** — a single path segment matched against the channel `name`, e.g. `POST /api/v2/data/order-intake`.\n* **REST channels** — each active channel registers its own method and path pattern (`config.rest.routes`) at engine-reload time; those patterns may span several segments and declare their own path parameters, which arrive in the workflow as `metadata.params`, percent-decoded exactly once (`a%2Fb` becomes `a/b`). Static segments match byte-exact — the path is case-sensitive per RFC 3986. Any HTTP method is accepted — `GET`, `PUT`, `PATCH` and `DELETE` behave identically to the `POST` documented here, with the verb exposed as `metadata.http_method`. Query the admin channel API for the routes a given deployment actually serves.\n* **Hooked channels** — a channel whose protocol's driver answers its requests itself (an edition's event stream or GraphQL endpoint; `http_hook` in `GET /api/v2/admin/runtime-capabilities`). The body is handed to the driver as received and need not be JSON, so the `415`/`400` rows below do not apply to it; the rate limit, `auth` and the origin allow-list still run first. The status, headers and body (possibly a `text/event-stream` that stays open) are the driver's. Each workflow run it makes is traced with the protocol as its `mode`. Such a channel cannot be submitted to `/async` (`405`).\n\nAppend `/async` to submit to the queue instead — see `POST /api/v2/data/{channel}/async`.\n\nAuthentication is per channel and off by default: `admin_auth` covers the admin plane only. A channel carrying an `auth` block in its config (`api_key` or `hmac`) authenticates every caller on this path and on `/async` alike; a channel without one is open to anyone who can reach the port. `validation_logic` and `origin_allow_list` complement it but are not authentication — `Origin` is client-supplied.",
         "operationId": "process_channel_request",
         "parameters": [
           {
@@ -3498,6 +3538,16 @@
           },
           "404": {
             "description": "No channel serves this request: either no REST route matches the requested method and path, or the single-segment name is not an active channel in the registry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "The channel is not served over HTTP (`METHOD_NOT_ALLOWED`): a cron channel (run it now through `POST /api/v2/admin/channels/{id}/trigger`), or a channel whose driver runs its own listener and receives its messages over that transport. On `/async`, also a channel whose driver answers its requests itself.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3652,6 +3702,16 @@
           },
           "404": {
             "description": "No channel serves this request: either no REST route matches the requested method and path, or the single-segment name is not an active channel in the registry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "The channel is not served over HTTP (`METHOD_NOT_ALLOWED`): a cron channel (run it now through `POST /api/v2/admin/channels/{id}/trigger`), a channel whose driver runs its own listener and receives its messages over that transport, or an OAuth2 callback route, whose redirect is the response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3847,7 +3907,7 @@
           "Operational"
         ],
         "summary": "Readiness probe",
-        "description": "Readiness probe. Reports `ready` only when the database responds, startup has completed, every background task the node cannot work without is still running. In cluster mode the shared dedup store, response cache and rate limits live in that same database, so its check covers them. The `components.engine` field is a constant `\"ok\"` kept for response-shape stability: the engine snapshot is lock-free and cannot be unavailable once the process serves.\n\nThe `components.background_tasks` is `error` when a required task — the trace dispatcher, the persistence workers, the audit writer, the DLQ retry consumer, the cluster reconciler — has stopped for good; each of those fails silently otherwise, dropping traces or audit rows while the data plane keeps answering 200s. Unauthenticated, so probes work without provisioning an admin key.",
+        "description": "Readiness probe. Reports `ready` only when the database responds, startup has completed, every background task the node cannot work without is still running, and, in cluster mode, the cluster store responds. Cluster mode (Orion Standard and Enterprise) keeps the shared dedup store, response cache and rate limits in a store the edition supplies; `components.cluster_store` reports it as `{name, status}`, `status` being `ok` or `error`, and an `error` makes the node not ready, because dedup would otherwise fail open while the data plane answers 200s. The component is absent on a single node, which keeps all three in process. Both pings run concurrently, each bounded by `engine.health_check_timeout_secs`. The `components.engine` field is a constant `\"ok\"` kept for response-shape stability: the engine snapshot is lock-free and cannot be unavailable once the process serves.\n\nThe `components.background_tasks` is `error` when a required task — the trace dispatcher, the persistence workers, the audit writer, the DLQ retry consumer, the cluster reconciler — has stopped for good; each of those fails silently otherwise, dropping traces or audit rows while the data plane keeps answering 200s. Unauthenticated, so probes work without provisioning an admin key.",
         "operationId": "readiness_probe",
         "responses": {
           "200": {
@@ -4064,14 +4124,14 @@
           "stores": {
             "type": "integer",
             "format": "int64",
-            "description": "How many response-cache stores the bump reached: the default store\nand each in-memory store on the node that answered. In a cluster the\ndefault store is the shared database, which carries the bump to every\nnode.",
+            "description": "How many response-cache stores the bump reached: the default store\nand each in-memory store on the node that answered. In a cluster the\ndefault store is the cluster store, which carries the bump to every\nnode.",
             "minimum": 0
           }
         }
       },
       "CatalogueEntry": {
         "type": "object",
-        "description": "One entry of `GET /api/v2/admin/functions`.\n\nEvery name a workflow may use, not only the functions Orion input-schema\nvalidates: those omit `map`, `filter`, `parse_json` and the rest, which are\nthe ones people actually type — in the deployment that reported it (#288)\nsuch names were 425 of 631 tasks, `map` alone 310. A completion\nsource offering the connector functions and none of those is not an\nincomplete catalogue, it is the wrong one.\n\nA projection of [`FunctionEntry`] rather than the entry itself, because the\nwire shape is pinned by `docs/openapi.json` and the two are allowed to grow\nat different rates: `writes` and the connector rule are the analysis's\nbusiness and are not served.",
+        "description": "One entry of `GET /api/v2/admin/functions`.\n\nEvery name a workflow may use, not only the functions Orion input-schema\nvalidates: those omit `map`, `filter`, `parse_json` and the rest, which are\nthe ones people actually type — in the deployment that reported it\nsuch names were 425 of 631 tasks, `map` alone 310. A completion\nsource offering the connector functions and none of those is not an\nincomplete catalogue, it is the wrong one.\n\nA projection of [`FunctionEntry`] rather than the entry itself, because the\nwire shape is pinned by the OpenAPI document in GoPlasmatic/Orion-docs and\nthe two are allowed to grow at different rates: `writes` and the connector\nrule are the analysis's business and are not served.",
         "required": [
           "name",
           "description",
@@ -4182,6 +4242,17 @@
           "supports_oauth2_login"
         ],
         "properties": {
+          "http_hook": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HttpHookGuards",
+                "description": "For a driver that serves its channels' requests on the data plane\nitself, the guards beyond the always-on ones (rate limit,\nauthentication, origin) that its requests and runs pass."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ingress_guards": {
             "oneOf": [
               {
@@ -4313,6 +4384,24 @@
           }
         }
       },
+      "ClusterStoreReadiness": {
+        "type": "object",
+        "description": "The `cluster_store` component of a [`ReadinessComponents`].",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The store's name, e.g. `redis`."
+          },
+          "status": {
+            "type": "string",
+            "description": "`ok` | `error`."
+          }
+        }
+      },
       "ConnectionProbeResponse": {
         "type": "object",
         "description": "One health probe of a connection revision\n(`POST /api/v2/admin/connections/{id}/revisions/{revision}/probes`). A probe\nthat ran answers `200` whatever it found: `healthy` is the finding.",
@@ -4365,7 +4454,7 @@
         "properties": {
           "bindings": {
             "type": "object",
-            "description": "Over a `workflow` provider package: the connection each of the\npackage's dependency aliases calls (`alias -> connection_id`). Empty\nfor any other provider.",
+            "description": "Over a provider that declares dependencies (a `workflow` provider\npackage, or a composed `rust` provider whose `describe()` declares\nthem): the connection each dependency alias calls\n(`alias -> connection_id`). Empty for any other provider.",
             "additionalProperties": {
               "type": "string"
             },
@@ -4419,6 +4508,24 @@
           "provider_failure",
           "contract_violation"
         ]
+      },
+      "ConnectorErrorDetail": {
+        "type": "object",
+        "description": "What a data-plane error body says about the connector failure behind it.\nThe provider's message is never sent (it can name hosts and values); its\ncode is, because providers document their codes as contract.",
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "The failure's class (`provider_failure`, `unavailable`,\n`rate_limited`, `contract_violation`, …). A string, so a class added\nlater does not break a tolerant client."
+          },
+          "provider_code": {
+            "type": "string",
+            "description": "The provider's own code (`MONGO_DUPLICATE_KEY`): a static\nSHOUTY_CASE name the provider documents."
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "Whether the provider advised that retrying may succeed."
+          }
+        }
       },
       "ConnectorLoadIssueResponse": {
         "type": "object",
@@ -4578,7 +4685,7 @@
         "properties": {
           "bindings": {
             "type": "object",
-            "description": "Over a `workflow` provider package: which connection each of the\npackage's declared dependency aliases calls (`alias -> connection_id`).\nEvery alias must be bound, and each target must be a stored\nconnection; a deployment member for this connection must require each\nbound connection. Absent means none, as it must be for any other\nprovider.",
+            "description": "Over a provider that declares dependencies (a `workflow` provider\npackage, or a composed `rust` provider whose `describe()` declares\nthem): which connection each dependency alias calls\n(`alias -> connection_id`). Every required alias must be bound, and\neach target must be a stored connection over a provider that declares\nno dependencies of its own; a deployment member for this connection\nmust require each bound connection. Absent means none, as it must be\nfor any other provider.",
             "additionalProperties": {
               "type": "string"
             },
@@ -4978,7 +5085,7 @@
       },
       "Data_BackupFileResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5015,7 +5122,7 @@
       },
       "Data_CacheInvalidatedResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5035,7 +5142,7 @@
               "stores": {
                 "type": "integer",
                 "format": "int64",
-                "description": "How many response-cache stores the bump reached: the default store\nand each in-memory store on the node that answered. In a cluster the\ndefault store is the shared database, which carries the bump to every\nnode.",
+                "description": "How many response-cache stores the bump reached: the default store\nand each in-memory store on the node that answered. In a cluster the\ndefault store is the cluster store, which carries the bump to every\nnode.",
                 "minimum": 0
               }
             }
@@ -5044,7 +5151,7 @@
       },
       "Data_CircuitBreakerResetResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5074,7 +5181,7 @@
       },
       "Data_CircuitBreakerStatesResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5117,7 +5224,7 @@
       },
       "Data_CronOccurrenceResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5254,7 +5361,7 @@
       },
       "Data_DlqPurgeResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5285,7 +5392,7 @@
       },
       "Data_EngineStatusResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5360,7 +5467,7 @@
       },
       "Data_TraceDetailResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5435,7 +5542,7 @@
       },
       "Data_TraceDlqEntryResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5500,7 +5607,7 @@
       },
       "Data_Vec_BackupListItemResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5535,7 +5642,7 @@
       },
       "Data_Vec_CatalogueEntry": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -5544,7 +5651,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "description": "One entry of `GET /api/v2/admin/functions`.\n\nEvery name a workflow may use, not only the functions Orion input-schema\nvalidates: those omit `map`, `filter`, `parse_json` and the rest, which are\nthe ones people actually type — in the deployment that reported it (#288)\nsuch names were 425 of 631 tasks, `map` alone 310. A completion\nsource offering the connector functions and none of those is not an\nincomplete catalogue, it is the wrong one.\n\nA projection of [`FunctionEntry`] rather than the entry itself, because the\nwire shape is pinned by `docs/openapi.json` and the two are allowed to grow\nat different rates: `writes` and the connector rule are the analysis's\nbusiness and are not served.",
+              "description": "One entry of `GET /api/v2/admin/functions`.\n\nEvery name a workflow may use, not only the functions Orion input-schema\nvalidates: those omit `map`, `filter`, `parse_json` and the rest, which are\nthe ones people actually type — in the deployment that reported it\nsuch names were 425 of 631 tasks, `map` alone 310. A completion\nsource offering the connector functions and none of those is not an\nincomplete catalogue, it is the wrong one.\n\nA projection of [`FunctionEntry`] rather than the entry itself, because the\nwire shape is pinned by the OpenAPI document in GoPlasmatic/Orion-docs and\nthe two are allowed to grow at different rates: `writes` and the connector\nrule are the analysis's business and are not served.",
               "required": [
                 "name",
                 "description",
@@ -5595,7 +5702,7 @@
       },
       "Data_Vec_CronScheduleStatusResponse": {
         "type": "object",
-        "description": "`{\"data\": T}` — the envelope every admin 2xx carries.",
+        "description": "`{\"data\": T}` — the envelope an operational admin 2xx carries.",
         "required": [
           "data"
         ],
@@ -6137,9 +6244,10 @@
       },
       "EditionTier": {
         "type": "string",
-        "description": "An edition, and the distribution tier a provider package declares.",
+        "description": "An edition, and the distribution tier a provider package declares.\n\nThe tiers are a ladder in declaration order (`community` < `standard` <\n`enterprise`): a node admits a package whose tier is at or below its own\nedition ([`Self::admits`]). Community is built here; Standard and\nEnterprise are editions composed outside this repository.",
         "enum": [
           "community",
+          "standard",
           "enterprise"
         ]
       },
@@ -6310,6 +6418,17 @@
           "code": {
             "type": "string"
           },
+          "connector": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorErrorDetail",
+                "description": "The connector failure behind a data-plane answer, when one is: its\nclass and the provider's own code. Omitted for every other error.\n\nBoxed: it is rare, and the envelope rides inside every client error."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "details": {
             "type": "array",
             "items": {
@@ -6426,6 +6545,29 @@
               "null"
             ],
             "minimum": 0
+          }
+        }
+      },
+      "HttpHookGuards": {
+        "type": "object",
+        "description": "The guards a hooked driver declares beyond the always-on ones.",
+        "required": [
+          "validation",
+          "deduplication",
+          "backpressure"
+        ],
+        "properties": {
+          "backpressure": {
+            "type": "boolean",
+            "description": "The concurrency permit, held for the request and any stream it opens."
+          },
+          "deduplication": {
+            "type": "boolean",
+            "description": "Idempotency-key deduplication, once per request."
+          },
+          "validation": {
+            "type": "boolean",
+            "description": "`validation_logic`, judged against each run's `data`."
           }
         }
       },
@@ -6722,6 +6864,26 @@
           "deleted"
         ]
       },
+      "PackageFilesRequest": {
+        "type": "object",
+        "description": "A provider package's files, for the authoring tools that only read them\n(`POST /api/v2/admin/authoring/lint` and `/authoring/pack`).\n\nSeparate from [`UploadPackageRequest`] so `admit` and `lock` cannot be sent\nto an endpoint that has no admission to perform and would silently drop\nthem.",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "object",
+            "description": "Relative path → the file, as UTF-8 text or `base64:<…>`.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "Page_AuditLogEntryResponse": {
         "type": "object",
         "description": "The envelope of every list: `data` plus how to get the next page.\n\nOne shape for every collection. A list pages by an opaque **cursor**, not an\noffset: the lists are append-heavy ledgers read newest-first, so an offset\nskips or repeats rows as new ones arrive and costs a scan of everything it\nskips, while a cursor resumes at an exact position in constant time.\n\n- `next_cursor` is present when a further page exists; pass it back as\n  `?cursor=`, unmodified. Absent on the last page. Do not parse it.\n- `total` is **opt-in** (`?include_total=true`): counting the filtered set is\n  a full scan on Postgres and InnoDB, so it is computed only when asked. An\n  absent `total` means \"not counted\", never \"no rows\".\n- `limit` is the page size applied. Absent from a complete catalogue that is\n  not paged at all.",
@@ -6810,7 +6972,7 @@
               "properties": {
                 "bindings": {
                   "type": "object",
-                  "description": "Over a `workflow` provider package: the connection each of the\npackage's dependency aliases calls (`alias -> connection_id`). Empty\nfor any other provider.",
+                  "description": "Over a provider that declares dependencies (a `workflow` provider\npackage, or a composed `rust` provider whose `describe()` declares\nthem): the connection each dependency alias calls\n(`alias -> connection_id`). Empty for any other provider.",
                   "additionalProperties": {
                     "type": "string"
                   },
@@ -7420,6 +7582,19 @@
           "driver_id"
         ],
         "properties": {
+          "dependencies": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The connections the backend calls beside its own, by alias: what a\nconnection over it binds in `bindings`. Absent when it declares none.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProviderDependencyInfo"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "driver_id": {
             "type": "string",
             "description": "The backend id: a `rust` driver's id, or a `workflow`/`wasm`\npackage's digest."
@@ -7446,6 +7621,31 @@
               "null"
             ],
             "description": "A `rust` driver's provider digest, derived from its id — what a\nconnection revision over it names as its `provider_digest`, whether\nthe driver is Community's or one an edition compiled in. Absent for a\n`workflow` or `wasm` backend, whose id is already its package digest."
+          }
+        }
+      },
+      "ProviderDependencyInfo": {
+        "type": "object",
+        "description": "One dependency a provider backend declares.",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The operations the backend may call on the bound connection.",
+            "uniqueItems": true
+          },
+          "optional": {
+            "type": "boolean",
+            "description": "Whether a connection may leave the alias unbound."
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The provider id the bound connection must run on, when it must run\non one."
           }
         }
       },
@@ -7531,6 +7731,17 @@
               "type": "string"
             }
           },
+          "cluster_store": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClusterStoreReadiness",
+                "description": "The cluster's shared store, which an edition supplies, when the\ncluster is enabled. An unreachable store makes the node not ready.\nAbsent on a single node."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "database": {
             "type": "string",
             "description": "`ok` | `error`."
@@ -7541,7 +7752,7 @@
           },
           "initialized": {
             "type": "boolean",
-            "description": "Whether startup has completed, `[packages] apply` included."
+            "description": "Whether startup has completed."
           }
         }
       },
@@ -7661,6 +7872,7 @@
           "edition",
           "admission_policy_id",
           "channel_drivers",
+          "channel_driver_info",
           "schema_profiles",
           "wasm_worlds",
           "provider_backends",
@@ -7684,7 +7896,7 @@
             "items": {
               "$ref": "#/components/schemas/ChannelDriverInfo"
             },
-            "description": "What each of those protocols' drivers declares: what an offline tool\n(`orion-cli lint`/`compile --capabilities`) validates a channel of an\nedition's protocol against. Absent from a server that predates it."
+            "description": "What each of those protocols' drivers declares: what an offline tool\n(`orion-cli lint`/`compile --capabilities`) validates a channel of an\nedition's protocol against."
           },
           "channel_drivers": {
             "type": "array",
@@ -7745,6 +7957,17 @@
           },
           "publisher": {
             "type": "string"
+          },
+          "tier": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EditionTier",
+                "description": "The edition tier the package's `distribution.json` declares. Absent\nkeeps today's `community` default, so an older caller's body is\nunchanged in meaning."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "version": {
             "type": "string",
@@ -8078,14 +8301,14 @@
       },
       "UploadPackageRequest": {
         "type": "object",
-        "description": "A provider package's files: the body of `POST /api/v2/admin/connector-packages`,\n`/authoring/lint` and `/authoring/pack`.",
+        "description": "A provider package's files, and optionally its admission, for\n`POST /api/v2/admin/connector-packages`.",
         "required": [
           "files"
         ],
         "properties": {
           "admit": {
             "type": "boolean",
-            "description": "Upload only: admit the package in the same request. Absent means\n`false`."
+            "description": "Admit the package in the same request. Absent means `false`."
           },
           "files": {
             "type": "object",
@@ -8098,7 +8321,7 @@
             }
           },
           "lock": {
-            "description": "Upload only, with `admit`: the provider lock the admission must\nverify against."
+            "description": "With `admit`: the provider lock the admission must verify against.\nWithout `admit` it has no effect and is refused."
           }
         },
         "additionalProperties": false
@@ -8232,7 +8455,7 @@
     },
     {
       "name": "Deployments",
-      "description": "Immutable v2 deployment planning, CAS apply, convergence, rollback, and edition preflight"
+      "description": "Immutable v2 deployment planning, CAS apply, convergence, and rollback"
     },
     {
       "name": "Providers",

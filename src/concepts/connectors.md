@@ -1,118 +1,132 @@
-<!-- description: A connector is a named connection to an external system: a file in your definition set that compiles into an immutable connection revision a node serves. -->
+<!-- description: Learn how Orion connectors manage database, HTTP, cache, and enterprise provider connections, secret references, operation gates, and circuit breakers. -->
 <!-- type: concept -->
-<!-- last_verified: 2026-10-25 -->
+<!-- last_verified: 2026-11-16 -->
 
-# Connectors
+# Connectors and secrets
 
-A *connector* is a named connection to an external system, such as a database, an HTTP API or a cache. You write it once as a file in your definition set, and every workflow that needs it names it. Credentials, pooling, retries and circuit breaking belong to the connector, not to the tasks that use it.
+A **connector** is a named, reusable connection to an external system—such as a SQL database, an HTTP API, a cache, or a message broker. Instead of embedding URLs, credentials, and retry rules inside individual workflow tasks, you define a connector once in your definition set and reference it by name across any number of workflows.
 
 ```orion-diagram
 {
   "direction": "LR",
-  "groups": [ { "id": "orion", "label": "Orion" } ],
+  "groups": [ { "id": "orion", "label": "Orion node" } ],
   "nodes": [
     { "id": "wf1", "label": "order-processing", "type": "service", "group": "orion" },
     { "id": "wf2", "label": "refund-handler", "type": "service", "group": "orion" },
-    { "id": "c1", "label": "orders-db", "sublabel": "db", "type": "accent", "group": "orion" },
-    { "id": "c2", "label": "payments-api", "sublabel": "http", "type": "accent", "group": "orion" },
+    { "id": "c1", "label": "orders-db", "sublabel": "db connector", "type": "accent", "group": "orion" },
+    { "id": "c2", "label": "payments-api", "sublabel": "http connector", "type": "accent", "group": "orion" },
     { "id": "pg", "label": "PostgreSQL", "type": "datastore" },
-    { "id": "ext", "label": "Stripe", "type": "datastore", "shape": "cloud" }
+    { "id": "ext", "label": "Stripe API", "type": "datastore", "shape": "cloud" }
   ],
   "edges": [
-    { "from": "wf1", "to": "c1" }, { "from": "wf1", "to": "c2" }, { "from": "wf2", "to": "c2" },
-    { "from": "c1", "to": "pg" }, { "from": "c2", "to": "ext" }
+    { "from": "wf1", "to": "c1" },
+    { "from": "wf1", "to": "c2" },
+    { "from": "wf2", "to": "c2" },
+    { "from": "c1", "to": "pg" },
+    { "from": "c2", "to": "ext" }
   ]
 }
 ```
 
-The diagram shows two workflows sharing `payments-api`. They share one configured connection, one credential and one circuit breaker. Change the connector and both follow.
+In the diagram above, both `order-processing` and `refund-handler` reference `payments-api`. They share a single connection pool, credential configuration, retry policy, and circuit breaker.
 
-## The problem it solves
+---
 
-Without a connector, every task that reaches a database would carry its own address, its own credential and its own retry policy. A credential rotation would touch every workflow, and nothing would stop one task from deleting rows another relies on.
+## Connector files vs. connection revisions
 
-A connector moves all of that below the logic. A task names `orders-db` and nothing else. What `orders-db` points at, which credential it presents, and what it permits are decided once, in one file.
+A connector exists in two representations across the deployment lifecycle:
 
-## Two forms: the file and the connection
+| Form | Where It Lives | How It Changes |
+| :--- | :--- | :--- |
+| **Connector file (`connector.json`)** | In your repository's definition set alongside your workflows and channels | You edit the JSON file in Git |
+| **Connection revision** | On the Orion server (`POST /api/v2/admin/connections/{id}/revisions`), referenced by the deployment manifest | Immutable; changing a setting creates the next numbered revision |
 
-A connector exists in two forms. You write the first; a node serves the second.
-
-| Form | Where it lives | Who writes it | Changes by |
-|---|---|---|---|
-| Connector file | Your definition set, beside the workflows | You | Editing the file |
-| Connection revision | The node's deployment, named by the manifest | `compile` and `deployments apply -d` | A new revision; a revision never changes |
-
-This is a connector file. It is the one [Add your first connector](../get-started/tutorials/first-connector.md) deploys:
+Here is the `connector.json` from the `postgres-orders` example package:
 
 ```json
 {{#include ../../examples/packages/postgres-orders/connector.json}}
 ```
 
-`orion-cli compile` turns it into `connections/orders-db.json`. The connector's `name` becomes the connection id. Its `driver` picks a built-in driver. Every secret reference moves to `secret_locators`, and the rest becomes `public_config`:
+When you run `orion-cli compile`, the CLI transforms that file into a connection specification (`connections/orders-db.json`), separating non-sensitive settings (`public_config`) from secret references (`secret_locators`):
 
 ```json
 {
   "connection_id": "orders-db",
   "driver": "org.orion.postgresql",
   "provider_digest": "sha256:5e9d3f17…",
-  "public_config": { "allow_private_urls": true, "operations": { "delete": false }, "max_connections": 5 },
-  "secret_locators": { "connection_string": "env://ORDERS_DB_URL" }
+  "public_config": {
+    "allow_private_urls": true,
+    "operations": { "delete": false },
+    "max_connections": 5
+  },
+  "secret_locators": {
+    "connection_string": "env://ORDERS_DB_URL"
+  }
 }
 ```
 
-`deployments apply -d` stores that as a connection revision. It reuses a stored revision whose settings and locators match, and otherwise creates the next one. The workflow that names `orders-db` requires that revision in the manifest, so the two always deploy together. [Deployments](./deployments.md) explains the manifest.
+When you run `orion-cli deployments apply -d`, the CLI reuses an existing connection revision if one already matches those exact settings and locators, or creates the next revision (`orders-db@2`) and binds it into the deployment manifest.
 
-## The types
+---
 
-| Type | Reaches | Driver | Used by |
-|---|---|---|---|
-| `http` | Any HTTP API | `org.orion.http` | `http_call` |
-| `db` | PostgreSQL, MySQL, SQLite | `org.orion.postgresql`, `org.orion.mysql`, `org.orion.sqlite` | `data_query`, `data_write`, `db_read`, `db_write` |
-| `cache` | Per-node process memory | `org.orion.memory-cache` | `cache_read`, `cache_write`, `cache_delete`, `cache_incr` |
+## Built-in connector types and edition providers
 
-A `db` connector names its backend in its `driver` field: `postgresql`, `mysql` or `sqlite`. The connection string can then be a secret reference, because nothing has to be read from it. `compile` refuses a `db` connector without a `driver`.
+### Core connector types (all editions)
 
- <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>
+| Type | Target System | Built-in Driver ID | Used by Task Functions |
+| :--- | :--- | :--- | :--- |
+| **`http`** | REST and HTTP APIs | `org.orion.http` | `http_call` |
+| **`db`** | PostgreSQL, MySQL, SQLite | `org.orion.postgresql`, `org.orion.mysql`, `org.orion.sqlite` | `data_query`, `data_write`, `db_read`, `db_write` |
+| **`cache`** | Per-node in-memory cache | `org.orion.memory-cache` | `cache_read`, `cache_write`, `cache_delete`, `cache_incr` |
 
-Orion Standard and Enterprise add providers that a connector file names with `"provider"` in place of `connector_type`. They cover Kafka, SMTP, Redis, S3-compatible storage, MongoDB, Elasticsearch and ONNX models. [Edition providers](../reference/connectors/edition/index.md) lists their operations and connection fields. A connection over one is still an immutable revision, and its provider digest is the id the node reports.
+Every `db` connector explicitly declares its `driver` (`"postgresql"`, `"mysql"`, or `"sqlite"`) so `orion-cli compile` knows the database engine even when `connection_string` is an `env://` secret reference.
 
-## Secrets live outside the definition
+### Standard & Enterprise connector providers <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>
 
-Any string field can hold a reference instead of a value. `env://ORDERS_DB_URL` reads the node's environment, and `vault://` reads HashiCorp Vault. A node resolves the reference when it loads the connection. Three things follow:
+Available in Orion Standard and Enterprise (`orion-ext`). Instead of `"connector_type"`, a connector file declares `"provider"` and workflows invoke its operations using [`connector_call`](../reference/functions.md):
 
-- **No deployment holds a credential.** A connection revision stores the reference, so a database dump is not a credential leak.
-- **One definition set serves every environment.** Staging and production differ only in what the variable holds.
-- **A literal credential is refused.** `compile` rejects a secret-shaped key with a literal value, or a password inside a URL.
+| Provider ID | Target System | Operations |
+| :--- | :--- | :--- |
+| **`com.orion.smtp`** | SMTP email relays | `send` (alias `send_email`) |
+| **`com.orion.kafka`** | Apache Kafka / Redpanda | `publish` (also backs `protocol: "kafka"` channels) |
+| **`com.orion.redis`** | Shared Redis cache | `get`, `set`, `delete`, `incr`, `get_many`, `delete_many` |
+| **`com.orion.storage`** | S3-compatible object storage | `presign`, `head`, `get`, `put` |
+| **`com.orion.mongodb`** | MongoDB clusters | `find`, `write`, `aggregate` |
+| **`com.orion.elasticsearch`** | Elasticsearch clusters | `search`, `count`, `get`, `index`, `update`, `delete`, `bulk` |
+| **`com.orion.models`** | ONNX models (CPU inference via `tract`) | `infer` |
 
-Cloud secret-manager schemes are reserved. A reference using one with no live resolver is refused rather than passed through as a literal.
+See [Enterprise connector providers](../enterprise/providers.md) for each provider's configuration and operation schemas.
 
-## Gates: what a connector permits
+---
 
-Every connector declares which operations workflows may perform through it, and every gate defaults to allowed. Turning one off refuses that operation whatever a workflow asks for:
+## Secrets by reference (`env://` and `vault://`)
 
-```json
-{ "type": "db", "driver": "postgresql", "connection_string": "env://ORDERS_DB_URL",
-  "operations": { "delete": false, "raw_write": false } }
-```
+Credentials never live inside a deployment bundle or the Orion state database:
+- Use **`env://VAR_NAME`** to resolve a secret from the Orion server's environment variables when the connection loads.
+- Use **`vault://path/to/secret#field`** to resolve a secret from HashiCorp Vault.
 
-That connector cannot delete a row, not because no workflow tries but because the connector refuses. Gates are enforced at the connection, one level below the logic, and they survive every workflow change.
+`orion-cli compile` and the Admin API reject any connector definition that places a literal credential in a secret-shaped field (`password`, `secret`, `token`, `api_key`, or userinfo inside a URL). This guarantees two things:
+1. **Database dumps never leak credentials**, because the state database stores only locator strings (`"env://ORDERS_DB_URL"`).
+2. **One compiled deployment works across staging and production**, because each environment resolves its own environment variables or Vault paths at runtime.
 
-## Breakers: what a connector does when the far side fails
+---
 
-A connector can be guarded by a *circuit breaker*. Repeated failures open it. Calls through it then fail fast with `503` instead of piling up against a dead backend. It closes again on its own once calls succeed. HTTP connectors also retry with exponential backoff.
+## Operation gates, retries, and circuit breakers
 
-Breakers are off by default. Turn them on with `engine.circuit_breaker.enabled = true` ([configuration](../reference/configuration/engine.md#circuit-breaker)). A breaker is per `channel:connector` pair and per node, so one noisy channel cannot trip a shared connector for every other channel.
+### Operation gates
+Every connector has an `operations` block that restricts what workflows are allowed to do through that connection:
+- **SQL (`db`) connectors**: Gate `read`, `insert`, `update`, `delete`, `upsert`, and `raw_write` (all default to `true`). Setting `"delete": false` and `"raw_write": false` guarantees that no workflow using that connector can delete rows.
+- **HTTP (`http`) connectors**: Set `"operations": { "methods": ["GET"] }` to restrict a connector to read-only requests.
+- **Cache (`cache`) connectors**: Gate `read` and `write`.
 
-## Boundaries
+Operation gates are enforced at the connector layer, independent of workflow definitions.
 
-- **A connector is not created on a running node.** It reaches a node only inside a deployment, as a connection revision.
-- **A connection revision never changes.** Editing the file and applying again creates the next revision; the earlier one stays for rollback.
-- **Rotating a secret changes no revision.** The revision holds the reference, and the value lives in the environment or in Vault.
-- **Built-in drivers and edition providers deploy from a definition set.** Other connector types are a `compile` error. An edition provider must be registered on the target; Community refuses a connection over one.
+### Retries and circuit breakers
+- **HTTP retries**: `http` connectors can configure automatic exponential backoff retries for transient failures (`502`, `503`, `504`, network timeouts) on idempotent HTTP methods (`GET`, `HEAD`, `PUT`, `DELETE`, `OPTIONS`).
+- **Circuit breakers**: When enabled globally via `engine.circuit_breaker.enabled = true`, Orion maintains a circuit breaker for each `(channel, connector)` pair. If a downstream dependency repeatedly fails, the breaker opens and fails fast with `503 CIRCUIT_OPEN` until its recovery cooldown elapses.
 
 ## Next steps
 
-- [Add your first connector](../get-started/tutorials/first-connector.md): deploy one against PostgreSQL and use it from a workflow.
-- [Connect a database or API](../guides/author/connectors.md): write a connector file for each type, and keep its credential out.
-- [Connector types](../reference/connectors/index.md): every field of every type, with defaults, gates and retries.
-- [Deployments](./deployments.md): how a connection revision joins the manifest beside the workflows that use it.
+- [Connect databases, APIs, and caches](../guides/connectors.md) — Practical guide to configuring SQL, HTTP, OAuth2, and cache connectors.
+- [Connector schemas and portable data dialect](../reference/connectors.md) — Full field tables for every connector type and the `data_query` / `data_write` dialect.
+- [Enterprise connector providers](../enterprise/providers.md) — Configure Redis, Kafka, S3, MongoDB, Elasticsearch, SMTP, and ONNX models.

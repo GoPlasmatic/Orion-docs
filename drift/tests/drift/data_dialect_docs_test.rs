@@ -12,9 +12,9 @@ use orion_engine::query::schema::UnmappedPolicy;
 /// The first fenced ```json block after "The schema registry" heading in
 /// `src/reference/data-dialect.md`, exactly as a reader would copy it.
 fn documented_schema_example() -> serde_json::Value {
-    let path = crate::support::docs_path("src/reference/data-dialect.md");
+    let path = crate::support::docs_path("src/reference/connectors.md");
     let source =
-        std::fs::read_to_string(path).expect("src/reference/data-dialect.md must be readable");
+        std::fs::read_to_string(path).expect("src/reference/connectors.md must be readable");
     let section = source
         .split("## The schema registry")
         .nth(1)

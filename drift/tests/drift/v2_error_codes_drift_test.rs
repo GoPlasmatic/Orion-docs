@@ -11,7 +11,10 @@ use std::collections::BTreeMap;
 
 use orion_api::{ErrorCode, V2Code};
 
-const ERRORS_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/errors.md");
+const ERRORS_MD: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../src/reference/errors-and-metrics.md"
+);
 
 /// `code -> status` from the table under `heading`: a row whose first cell is
 /// a backticked code and whose second is a numeric status.

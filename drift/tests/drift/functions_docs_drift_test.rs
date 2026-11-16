@@ -58,7 +58,7 @@ fn orion_entries() -> impl Iterator<Item = &'static FunctionEntry> {
 
 /// The reference is one directory: `index.md` is the hub carrying the summary
 /// and retry-safety tables, and every function has a page named after it.
-const FUNCTIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/functions");
+const FUNCTIONS_MD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/reference/functions.md");
 
 /// One row of the page's summary table.
 struct DocRow {
@@ -68,8 +68,7 @@ struct DocRow {
 }
 
 fn doc() -> String {
-    std::fs::read_to_string(format!("{FUNCTIONS_DIR}/index.md"))
-        .expect("read reference/functions/index.md")
+    std::fs::read_to_string(FUNCTIONS_MD).expect("read reference/functions.md")
 }
 
 /// The summary table's rows, in page order.
@@ -369,41 +368,14 @@ fn every_documented_function_has_a_page() {
         .collect();
     let mut missing = Vec::new();
     for name in &rows {
-        let path = format!("{FUNCTIONS_DIR}/{name}.md");
-        let Ok(page) = std::fs::read_to_string(&path) else {
-            missing.push(format!("{name} (no {path})"));
-            continue;
-        };
-        let title = page
-            .lines()
-            .find(|l| l.starts_with("# "))
-            .unwrap_or_default();
-        if !title.contains(&format!("`{name}`")) {
-            missing.push(format!("{name} (page titled {title:?})"));
+        if !doc.contains(&format!("\n### `{name}`")) {
+            missing.push(format!("{name} (no `### \\`{name}\\`` section)"));
         }
     }
     assert!(
         missing.is_empty(),
-        "these functions have a summary-table row but no page of their own under \
-         src/reference/functions/: {missing:?}"
-    );
-
-    let stray: Vec<String> = std::fs::read_dir(FUNCTIONS_DIR)
-        .expect("list reference/functions")
-        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
-        .filter(|f| f.ends_with(".md"))
-        .map(|f| f.trim_end_matches(".md").to_string())
-        .filter(|stem| {
-            stem != "index"
-                && stem != "runtime-discovery"
-                && stem != "retry-safety"
-                && !rows.contains(stem)
-        })
-        .collect();
-    assert!(
-        stray.is_empty(),
-        "pages under src/reference/functions/ that the summary table does not \
-         list: {stray:?}"
+        "these functions have a summary-table row but no section of their own in \
+         src/reference/functions.md: {missing:?}"
     );
 }
 
@@ -464,14 +436,13 @@ fn registry_retry_safety() -> std::collections::BTreeMap<String, String> {
 /// naming the wrong deciding input sends someone to read the wrong field.
 #[test]
 fn the_retry_safety_table_matches_the_registry() {
-    let page = std::fs::read_to_string(format!("{FUNCTIONS_DIR}/retry-safety.md"))
-        .expect("read reference/functions/retry-safety.md");
+    let page = doc();
     let documented = documented_retry_safety(&page);
     let declared = registry_retry_safety();
 
     assert_eq!(
         documented, declared,
-        "the function table in src/reference/functions/retry-safety.md does not \
+        "the function table in src/reference/functions.md does not \
          match `schema::REGISTRY`"
     );
 }

@@ -1,35 +1,36 @@
-<!-- description: Install orion-server and orion-cli on macOS, Linux or Windows, or run Docker, including the Standard and Enterprise image, then verify readiness. -->
+<!-- description: Install orion-server and orion-cli on macOS, Linux, or Windows using Homebrew, shell scripts, Docker, or Cargo, and verify your local instance. -->
 <!-- type: guide -->
-<!-- last_verified: 2026-09-14 -->
+<!-- last_verified: 2026-11-16 -->
 
 # Install and run Orion
 
-Orion is a single binary with an embedded database. This guide installs it, starts it on its defaults, and verifies that it is ready to accept definitions.
+Orion ships as two matched binaries:
+- **`orion-server`**: The single-binary services runtime with an embedded SQLite database (plus built-in PostgreSQL and MySQL drivers).
+- **`orion-cli`**: The command-line tool for offline workflow linting, formatting, dry-runs, testing, compilation, and server deployments.
+
+Always install the same release version for both `orion-server` and `orion-cli` so their v2 API contracts match.
 
 ## Before you start
 
-Tested with Orion 2.0.0-rc.1. Choose one installation method. Every method produces the same binary.
+Tested with Orion 2.0.0-rc.1. Choose any installation method below based on your operating system:
 
-| Method | Platforms | You need |
-|---|---|---|
-| Homebrew | macOS Apple Silicon, Linux | Homebrew |
-| Shell installer | Linux, macOS Apple Silicon | A POSIX shell and `curl` |
-| PowerShell installer | Windows | Windows PowerShell |
-| Docker | Anywhere Docker runs | Docker Engine or Docker Desktop |
-| Source build | Anywhere Rust runs | Git and Rust 1.98 or newer |
+| Method | Supported Platforms | Prerequisites |
+| :--- | :--- | :--- |
+| **Homebrew** | macOS (Apple Silicon) and Linux | [Homebrew](https://brew.sh) |
+| **Shell installer** | Linux and macOS (Apple Silicon) | POSIX shell and `curl` |
+| **PowerShell installer** | Windows | Windows PowerShell |
+| **Docker** | Linux, macOS, Windows | Docker Engine or Docker Desktop |
+| **From source (Cargo)** | Any platform with Rust | Git and Rust `1.98` or newer |
 
-You also need `curl` for the verification step. In PowerShell, `Invoke-RestMethod http://localhost:8080/health` does the same job.
+> [!NOTE]
+> While `2.0.0-rc.1` is a release candidate, use the **From source** tab or build from a local checkout if prebuilt release artifacts are not yet published for your tag.
 
-The 2.0.0-rc.1 candidate is available from a local source checkout during
-validation. The installers and images below target published releases; use a
-checkout of the candidate for v2 testing until its artifacts are published.
-
-## Install the server
+## 1. Install `orion-server`
 
 <div class="tabs">
 <section data-tab="Homebrew">
 
-macOS Apple Silicon and Linux. Intel Macs build from source:
+On macOS (Apple Silicon) and Linux:
 
 ```bash
 brew install GoPlasmatic/tap/orion-server
@@ -38,7 +39,7 @@ brew install GoPlasmatic/tap/orion-server
 </section>
 <section data-tab="Shell">
 
-Linux and macOS Apple Silicon:
+On Linux and macOS (Apple Silicon):
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
@@ -48,7 +49,7 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 </section>
 <section data-tab="PowerShell">
 
-Windows:
+On Windows PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://github.com/GoPlasmatic/Orion/releases/latest/download/orion-server-installer.ps1 | iex"
@@ -57,7 +58,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://github.com/GoPlasmatic/Orion/
 </section>
 <section data-tab="Docker">
 
-Any platform. The image is the server with no CLI:
+Run the container image directly (exposes port `8080`):
 
 ```bash
 docker run -p 8080:8080 ghcr.io/goplasmatic/orion:latest
@@ -66,53 +67,20 @@ docker run -p 8080:8080 ghcr.io/goplasmatic/orion:latest
 </section>
 <section data-tab="Source">
 
-Any platform with a Rust toolchain at the version `Cargo.toml` declares, currently 1.98:
+Build from source with Cargo (requires Rust `1.98+`):
 
 ```bash
 cargo install --git https://github.com/GoPlasmatic/Orion --locked orion-server
 ```
 
-Both arguments matter. The repository is a workspace with two binary crates, so the package must be named. `--locked` builds the dependency set the committed `Cargo.lock` pins, which is the one CI tested. To install the CLI in the same command, name both packages: `orion-server orion-cli`.
+Pass `--locked` so Cargo compiles the exact dependency tree tested in CI.
 
 </section>
 </div>
 
-## Install Orion Standard or Enterprise
+## 2. Install `orion-cli`
 
- Orion Standard and Enterprise are one artifact, `orion-ext`, distributed through the private image registry. They are not a separate download from the Community server, and they do not use a different CLI. Access to the registry is the commercial control; the binary performs no licence check.
-
-Build the image from the Orion Ext repository, or use the registry image your agreement names:
-
-```bash
-docker build -t orion-ext:local .
-docker run -p 8080:8080 -v "$PWD/orion-ext.toml:/app/config.toml" orion-ext:local
-```
-
-The edition is a label in `[extensions.licence]`. Absent, the node reports `standard`; `tier = "enterprise"` reports `enterprise`. Both editions serve the same extensions.
-
-```toml
-[extensions.licence]
-tier = "enterprise"   # or "standard" (the default)
-```
-
-A cluster node also needs the Redis shared store. This section has no environment-variable override, so mount a config file:
-
-```toml
-[cluster]
-enabled = true
-
-[extensions.redis]
-host = "redis.internal"
-password = "env://REDIS_PASSWORD"
-```
-
-Read [Deploy Orion Ext](../operate/deploy/orion-ext.md) for the reference Compose topology, the licence section and the cluster store.
-
-## Install the CLI
-
-`orion-cli` drives the same admin API from the terminal. It is what an AI assistant uses through the [agent skill](../guides/ai/agent-skill.md), and the tutorials deploy with it. The [quickstart](./quickstart.md) shows the same deployment as plain `curl` calls.
-
-The CLI ships in the same release as the server. Use matching versions so their wire formats agree. Every method is the server's with `orion-server` swapped for `orion-cli`:
+Install `orion-cli` using the same method you used for the server:
 
 <div class="tabs">
 <section data-tab="Homebrew">
@@ -137,34 +105,54 @@ powershell -ExecutionPolicy ByPass -c "irm https://github.com/GoPlasmatic/Orion/
 ```
 
 </section>
+<section data-tab="Docker">
+
+```bash
+docker run --rm ghcr.io/goplasmatic/orion-cli:latest \
+  --server http://host.docker.internal:8080 health
+```
+
+</section>
 <section data-tab="Source">
 
 ```bash
-cargo install --git https://github.com/GoPlasmatic/Orion --locked orion-cli
+cargo install --git https://github.com/codetiger/Orion-cli --locked orion-cli
 ```
 
 </section>
 </div>
 
-## Run the server
+## 3. Start the server and verify readiness
 
-Start Orion on its defaults, which are SQLite in `./orion.db` and HTTP on port 8080:
+Run `orion-server` with no arguments to start on its local defaults (HTTP on `127.0.0.1:8080` and an embedded SQLite database at `./orion.db`):
 
 ```bash
 orion-server
 ```
 
-There is nothing to provision. The database file is created on first boot and the migrations are embedded in the binary. SQLite is the right backend for one instance; read [which backend to use](../reference/configuration/storage.md) before you run more than one.
+On first boot, Orion creates `./orion.db` and runs its embedded database migrations automatically.
 
-## Verify
+In a second terminal, point `orion-cli` at your local instance and check its health:
 
-Ask the server how it is doing:
+<div class="tabs">
+<section data-tab="CLI">
 
 ```bash
-curl -s http://localhost:8080/health
+orion-cli config set-server http://localhost:8080
+orion-cli health
 ```
 
-Output, with build values that differ per release:
+</section>
+<section data-tab="curl">
+
+```bash
+curl -s http://localhost:8080/health | jq
+```
+
+</section>
+</div>
+
+The `/health` endpoint returns the server status and loaded state:
 
 ```json
 {
@@ -185,29 +173,55 @@ Output, with build values that differ per release:
 }
 ```
 
-`"status": "ok"` with `"workflows_loaded": 0` means the server is ready and serves nothing yet, because no deployment is committed. Read `status`, `workflows_loaded` and the component states rather than comparing the whole body: more components may appear in later releases.
+`"status": "ok"` with `"workflows_loaded": 0` confirms the server is healthy and waiting for your first deployment. Outside production mode, Orion also serves interactive OpenAPI documentation at [http://localhost:8080/docs](http://localhost:8080/docs).
 
-Two more surfaces are live already. Swagger UI at [http://localhost:8080/docs](http://localhost:8080/docs) shows the whole admin API; it is served outside production environments (see [OpenAPI specification](../reference/openapi.md)). And the CLI, once you point it at the server:
+## 4. Configure the server
 
-```bash
-orion-cli config set-server http://localhost:8080
-orion-cli health
-```
-
-## Change the defaults
-
-Orion reads a TOML file, and any key in it can be overridden by an `ORION_SECTION__KEY` environment variable:
+You can configure `orion-server` with a TOML file (`-c config.toml`), environment variables (`ORION_SECTION__KEY`), or both:
 
 ```bash
 orion-server -c config.toml
 ORION_SERVER__PORT=9090 orion-server
 ```
 
-Check a file before you deploy it. `orion-server validate-config -c config.toml` reports unknown keys and invalid values without starting the server. Every setting, its default and its environment variable are in [Server configuration](../reference/configuration/index.md).
+To validate a configuration file and inspect the merged settings (with secrets masked) without starting the server, run:
+
+```bash
+orion-server validate-config -c config.toml
+```
+
+See [Server configuration and environment variables](../reference/configuration.md) for every setting and default.
+
+## Install Orion Standard or Enterprise (`orion-ext`) <span class="edition-badge edition-standard-plus" title="Available in Orion Standard and Enterprise">Standard+</span>
+
+Available in Orion Standard and Enterprise only. Both commercial editions ship as a single binary and container image named **`orion-ext`**, distributed through the private registry. It uses the same `orion-cli` binary as Community.
+
+Pull the licensed image or build it from your `Orion-ext` checkout:
+
+```bash
+docker build -t orion-ext:local .
+docker run -p 8080:8080 -v "$PWD/orion-ext.toml:/app/config.toml:ro" orion-ext:local -c /app/config.toml
+```
+
+Configure the reported edition and the Redis cluster store in `orion-ext.toml`:
+
+```toml
+[extensions.licence]
+tier = "enterprise"   # or "standard" (default when omitted)
+
+[cluster]
+enabled = true
+
+[extensions.redis]
+host = "redis.internal"
+password = "env://REDIS_PASSWORD"
+```
+
+See [Standard & Enterprise overview](../enterprise/overview.md) and [Multi-node clustering and HA](../enterprise/clustering.md) for complete setup instructions.
 
 ## Next steps
 
-- [Quickstart](./quickstart.md): define one service and call it, in about five minutes.
-- [Build your first service](./tutorials/first-service.md): write a service as two files, compile them and apply the deployment with the CLI.
-- [Deployments](../concepts/deployments.md): what a node serves, and how a change reaches it.
-- [Run the example packages](./tutorials/examples.md): deploy a ready-made service from the repository instead of writing one.
+- [Quickstart](./quickstart.md) — Deploy and call your first service in under five minutes.
+- [Build your first service](./first-service.md) — Learn how workflows, channels, traces, and rollbacks work together.
+- [Build a Postgres-backed orders API](./postgres-orders-api.md) — Connect PostgreSQL, validate inputs, and run offline tests with stubs.
+- [Run the example packages](./examples.md) — Explore 11 ready-to-deploy example services.
