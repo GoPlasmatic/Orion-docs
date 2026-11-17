@@ -1,6 +1,6 @@
 <!-- description: Install orion-server and orion-cli on macOS, Linux, or Windows using Homebrew, shell scripts, Docker, or Cargo, and verify your local instance. -->
 <!-- type: guide -->
-<!-- last_verified: 2026-11-16 -->
+<!-- last_verified: 2026-11-17 -->
 
 # Install and run Orion
 

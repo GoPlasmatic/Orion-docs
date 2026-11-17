@@ -1,6 +1,6 @@
 <!-- description: Breaking changes and migration guide for upgrading from Orion 1.x to Orion 2.0: /api/v2 routes, immutable deployments, cursor pagination, and edition changes. -->
 <!-- type: migration -->
-<!-- last_verified: 2026-11-16 -->
+<!-- last_verified: 2026-11-17 -->
 
 # Upgrade to Orion 2.0
 
